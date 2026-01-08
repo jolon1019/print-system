@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>热卷打印管理系统</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>热卷打印管理系统</h1>
+      <div class="header-info">
+        <span id="current-time"></span>
+      </div>
+    </header>
+
+    <div class="main-content">
+      <aside class="sidebar">
+        <nav class="nav-menu">
+          <div class="nav-item active" data-tab="dashboard">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">仪表盘</span>
+          </div>
+          <div class="nav-item" data-tab="services">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-text">服务管理</span>
+          </div>
+          <div class="nav-item" data-tab="logs">
+            <span class="nav-icon">📝</span>
+            <span class="nav-text">日志查看</span>
+          </div>
+        </nav>
+
+        <div class="service-status-summary">
+          <h3>服务状态</h3>
+          <div class="status-item">
+            <span class="status-label">打印服务器</span>
+            <span class="status-indicator" id="print-server-status">●</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">打印机客户端</span>
+            <span class="status-indicator" id="printer-client-status">●</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Python监控</span>
+            <span class="status-indicator" id="python-monitor-status">●</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="tab-content active" id="dashboard">
+          <div class="dashboard-grid">
+            <div class="dashboard-card">
+              <div class="card-header">
+                <h3>打印服务器</h3>
+                <span class="card-status" id="print-server-card-status">未启动</span>
+              </div>
+              <div class="card-body">
+                <p>WebSocket服务器端口: 17026</p>
+                <p>HTTP API端口: 17027</p>
+                <p>远程访问地址: <span id="remote-access-url">wss://103.91.208.133:61098</span></p>
+                <div class="card-actions">
+                  <button class="btn btn-start" id="print-server-start-btn" onclick="startService('print-server')">启动</button>
+                  <button class="btn btn-stop" id="print-server-stop-btn" onclick="stopService('print-server')">停止</button>
+                  <button class="btn btn-config" onclick="editRemoteAccessUrl()">修改地址</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-card">
+              <div class="card-header">
+                <h3>打印机客户端</h3>
+                <span class="card-status" id="printer-client-card-status">未启动</span>
+              </div>
+              <div class="card-body">
+                <p>连接到: 127.0.0.1:17026</p>
+                <p>状态: 等待连接</p>
+                <div class="card-actions">
+                  <button class="btn btn-start" id="printer-client-start-btn" onclick="startService('printer-client')">启动</button>
+                  <button class="btn btn-stop" id="printer-client-stop-btn" onclick="stopService('printer-client')">停止</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-card">
+              <div class="card-header">
+                <h3>Python监控</h3>
+                <span class="card-status" id="python-monitor-card-status">未启动</span>
+              </div>
+              <div class="card-body">
+                <p>监控打印窗口</p>
+                <p>自动点击打印按钮</p>
+                <div class="card-actions">
+                  <button class="btn btn-start" id="python-monitor-start-btn" onclick="startService('python-monitor')">启动</button>
+                  <button class="btn btn-stop" id="python-monitor-stop-btn" onclick="stopService('python-monitor')">停止</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-card">
+              <div class="card-header">
+                <h3>库粗系统</h3>
+                <span class="card-status" id="kucu-system-status">就绪</span>
+              </div>
+              <div class="card-body">
+                <p>库存管理系统</p>
+                <p>管理库存数据</p>
+                <div class="card-actions">
+                  <button class="btn btn-start" onclick="openKucuSystem()">打开系统</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-card full-width">
+              <div class="card-header">
+                <h3>系统信息</h3>
+              </div>
+              <div class="card-body">
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-label">操作系统</span>
+                    <span class="info-value" id="os-info">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Node.js版本</span>
+                    <span class="info-value" id="node-version">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Electron版本</span>
+                    <span class="info-value" id="electron-version">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">运行时间</span>
+                    <span class="info-value" id="uptime">-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="services">
+          <div class="services-list">
+            <div class="service-item">
+              <div class="service-header">
+                <h3>打印服务器 (print-server.js)</h3>
+                <span class="service-status" id="print-server-service-status">未启动</span>
+              </div>
+              <div class="service-description">
+                <p>WebSocket服务器，用于接收打印任务并管理打印机连接</p>
+                <ul>
+                  <li>监听端口: 17026 (WebSocket), 17027 (HTTP)</li>
+                  <li>功能: 接收打印任务、管理打印机状态、处理模板打印</li>
+                </ul>
+              </div>
+              <div class="service-controls">
+                <button class="btn btn-start" onclick="startService('print-server')">启动服务</button>
+                <button class="btn btn-stop" onclick="stopService('print-server')">停止服务</button>
+              </div>
+            </div>
+
+            <div class="service-item">
+              <div class="service-header">
+                <h3>打印机客户端 (printer-client.js)</h3>
+                <span class="service-status" id="printer-client-service-status">未启动</span>
+              </div>
+              <div class="service-description">
+                <p>客户端应用，连接到打印服务器并处理打印任务</p>
+                <ul>
+                  <li>连接地址: 127.0.0.1:17026</li>
+                  <li>功能: 连接服务器、接收打印任务、调用系统打印</li>
+                </ul>
+              </div>
+              <div class="service-controls">
+                <button class="btn btn-start" onclick="startService('printer-client')">启动服务</button>
+                <button class="btn btn-stop" onclick="stopService('printer-client')">停止服务</button>
+              </div>
+            </div>
+
+            <div class="service-item">
+              <div class="service-header">
+                <h3>Python监控 (python_monitor.py)</h3>
+                <span class="service-status" id="python-monitor-service-status">未启动</span>
+              </div>
+              <div class="service-description">
+                <p>Python脚本，监控打印窗口并自动执行打印操作</p>
+                <ul>
+                  <li>功能: 查找打印窗口、自动点击打印按钮、监控打印状态</li>
+                  <li>特性: 多坐标支持、智能重试、详细日志记录</li>
+                </ul>
+              </div>
+              <div class="service-controls">
+                <button class="btn btn-start" onclick="startService('python-monitor')">启动服务</button>
+                <button class="btn btn-stop" onclick="stopService('python-monitor')">停止服务</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="logs">
+          <div class="logs-container">
+            <div class="logs-header">
+              <h3>系统日志</h3>
+              <div class="logs-controls">
+                <select id="log-filter" onchange="filterLogs()">
+                  <option value="all">全部日志</option>
+                  <option value="print-server">打印服务器</option>
+                  <option value="printer-client">打印机客户端</option>
+                  <option value="python-monitor">Python监控</option>
+                </select>
+                <button class="btn btn-clear" onclick="clearLogs()">清空日志</button>
+              </div>
+            </div>
+            <div class="logs-content" id="logs-content">
+              <div class="log-entry">
+                <span class="log-time">--:--:--</span>
+                <span class="log-service">系统</span>
+                <span class="log-message">系统已启动，等待服务启动...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
