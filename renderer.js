@@ -258,7 +258,7 @@ function updateTime() {
 }
 
 function openKucuSystem() {
-  const kucuFilePath = path.join('C:', 'Users', 'Administrator', 'Desktop', 'new', 'main.html');
+  const kucuFilePath = path.join('D:', 'print-system', 'hot-coil-print-system',  'main.html');
   shell.openPath(kucuFilePath).then((error) => {
     if (error) {
       addLog('库粗系统', `打开失败: ${error}`, 'error');
