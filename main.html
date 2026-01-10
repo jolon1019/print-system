@@ -3137,10 +3137,10 @@
             
             <div style="margin-top: 10px; font-size: 11px; color: #666; line-height: 1.4;">
                 <p>💡 缓存说明：</p>
-                <p>• 数据首次加载后会缓存到本地</p>
-                <p>• 下次打开时优先使用缓存数据</p>
-                <p>• 缓存自动在后台更新</p>
-
+                <p>• 首次访问自动刷新缓存</p>
+                <p>• 缓存12小时后自动更新</p>
+                <p>• 后台静默更新不影响使用</p>
+                <p>• 新会话自动触发缓存刷新</p>
             </div>
         </div>
 
@@ -4718,7 +4718,7 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
         
         const CACHE_CONFIG = {
-            VERSION: '2.0',
+            VERSION: '2.1',
             TTL: 24 * 60 * 60 * 1000,
             KEYS: {
                 INVENTORY: 'hotcoil_inventory_cache',
@@ -4726,8 +4726,12 @@
                 HISTORY: 'hotcoil_history_cache',
                 STATISTICS: 'hotcoil_statistics_cache',
                 TIMESTAMP: 'hotcoil_cache_timestamp',
-                META: 'hotcoil_cache_meta'
-            }
+                META: 'hotcoil_cache_meta',
+                FIRST_VISIT: 'system_first_visit',
+                SESSION_ID: 'system_session_id',
+                LAST_LOAD_TIME: 'system_last_load_time'
+            },
+            AUTO_REFRESH_THRESHOLD: 12 * 60 * 60 * 1000
         };
 
         const CacheManager = {
@@ -4822,6 +4826,52 @@
                 } catch (error) {
                     return false;
                 }
+            },
+            
+            checkCacheValidity() {
+                const lastLoadTime = localStorage.getItem(CACHE_CONFIG.KEYS.LAST_LOAD_TIME);
+                if (!lastLoadTime) return { valid: false, reason: 'no_load_time' };
+                
+                const timeSinceLastLoad = Date.now() - parseInt(lastLoadTime);
+                const needsRefresh = timeSinceLastLoad > CACHE_CONFIG.AUTO_REFRESH_THRESHOLD;
+                
+                return {
+                    valid: !needsRefresh,
+                    reason: needsRefresh ? 'needs_refresh' : 'valid',
+                    timeSinceLastLoad
+                };
+            },
+            
+            updateLoadTime() {
+                localStorage.setItem(CACHE_CONFIG.KEYS.LAST_LOAD_TIME, Date.now().toString());
+            },
+            
+            generateSessionId() {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            },
+            
+            getCurrentSessionId() {
+                let sessionId = sessionStorage.getItem(CACHE_CONFIG.KEYS.SESSION_ID);
+                if (!sessionId) {
+                    sessionId = this.generateSessionId();
+                    sessionStorage.setItem(CACHE_CONFIG.KEYS.SESSION_ID, sessionId);
+                }
+                return sessionId;
+            },
+            
+            isFirstVisitInSession() {
+                const currentSessionId = this.getCurrentSessionId();
+                const lastSessionId = localStorage.getItem(CACHE_CONFIG.KEYS.FIRST_VISIT);
+                return lastSessionId !== currentSessionId;
+            },
+            
+            markSessionAsVisited() {
+                const currentSessionId = this.getCurrentSessionId();
+                localStorage.setItem(CACHE_CONFIG.KEYS.FIRST_VISIT, currentSessionId);
+            },
+            
+            clearFirstVisitFlag() {
+                localStorage.removeItem(CACHE_CONFIG.KEYS.FIRST_VISIT);
             }
         };
         
@@ -4931,6 +4981,7 @@
                             loadHistoryFromSupabase(true)
                         ]);
                         
+                        CacheManager.updateLoadTime();
                         cacheStatus.value = 'ready';
                         ElMessage.success('缓存刷新完成');
                         updateCacheStats();
@@ -4942,19 +4993,107 @@
                 };
                 
                 const isFirstVisit = () => {
-                    const visited = localStorage.getItem('system_first_visit');
-                    return !visited;
+                    return CacheManager.isFirstVisitInSession();
                 };
                 
                 const markAsVisited = () => {
-                    localStorage.setItem('system_first_visit', 'true');
+                    CacheManager.markSessionAsVisited();
                 };
                 
                 const handleFirstVisit = async () => {
-                    if (isFirstVisit()) {
-                        console.log('首次访问系统，正在自动更新缓存...');
+                    const validityCheck = CacheManager.checkCacheValidity();
+                    
+                    if (isFirstVisit() || !validityCheck.valid) {
+                        if (isFirstVisit()) {
+                            console.log('检测到新会话访问，正在自动更新缓存...');
+                        } else {
+                            console.log('缓存已过期或需要刷新，正在自动更新缓存...');
+                        }
+                        
                         await refreshCache();
                         markAsVisited();
+                    } else {
+                        console.log('缓存有效，使用缓存数据');
+                    }
+                };
+                
+                const autoRefreshCacheIfNeeded = async () => {
+                    const validityCheck = CacheManager.checkCacheValidity();
+                    
+                    if (!validityCheck.valid) {
+                        console.log('后台自动刷新缓存...');
+                        try {
+                            await refreshCache();
+                        } catch (error) {
+                            console.error('后台自动刷新缓存失败:', error);
+                        }
+                    }
+                };
+                
+                const smartLoadData = async () => {
+                    const validityCheck = CacheManager.checkCacheValidity();
+                    const isFirstVisitSession = isFirstVisit();
+                    
+                    console.log('[智能加载] 缓存状态:', validityCheck);
+                    console.log('[智能加载] 是否首次会话:', isFirstVisitSession);
+                    
+                    if (isFirstVisitSession || !validityCheck.valid) {
+                        console.log('[智能加载] 执行完整数据加载和缓存刷新...');
+                        await refreshCache();
+                        markAsVisited();
+                    } else {
+                        console.log('[智能加载] 使用缓存数据，后台静默更新...');
+                        
+                        const cachedInventory = loadFromCache(CACHE_CONFIG.KEYS.INVENTORY);
+                        const cachedOutbound = loadFromCache(CACHE_CONFIG.KEYS.OUTBOUND);
+                        const cachedHistory = loadFromCache(CACHE_CONFIG.KEYS.HISTORY);
+                        
+                        if (cachedInventory) {
+                            inventoryData.value = cachedInventory;
+                            updateAvailableOptions();
+                            calculateStatistics();
+                        }
+                        
+                        if (cachedOutbound) {
+                            outboundHistoryData.value = cachedOutbound;
+                            const batchesByRef = {};
+                            cachedOutbound.forEach(item => {
+                                const refNo = item.ref_no;
+                                if (!batchesByRef[refNo]) {
+                                    batchesByRef[refNo] = {};
+                                }
+                                if (!batchesByRef[refNo][item.batch_no]) {
+                                    batchesByRef[refNo][item.batch_no] = [];
+                                }
+                                batchesByRef[refNo][item.batch_no].push({
+                                    unit_price: item.unit_price,
+                                    total_amount: item.total_amount,
+                                    out_weight: item.out_weight,
+                                    material: item.material,
+                                    specification: item.specification,
+                                    created_at: item.created_at
+                                });
+                            });
+                            outboundBatchMap.value = batchesByRef;
+                        }
+                        
+                        if (cachedHistory) {
+                            historyData.value = cachedHistory;
+                        }
+                        
+                        if (cachedInventory || cachedOutbound || cachedHistory) {
+                            cacheStatus.value = 'ready';
+                            updateCacheStats();
+                        }
+                        
+                        setTimeout(async () => {
+                            console.log('[智能加载] 后台静默更新数据...');
+                            try {
+                                await refreshCache();
+                            } catch (error) {
+                                console.error('[智能加载] 后台更新失败:', error);
+                            }
+                        }, 1000);
                     }
                 };
                 
@@ -4997,19 +5136,53 @@
                     }
                 };
                 
+                // 页面可见性变化处理
+                const handleVisibilityChange = async () => {
+                    if (document.visibilityState === 'visible') {
+                        console.log('[页面可见性] 用户回到页面，检查缓存状态...');
+                        const validityCheck = CacheManager.checkCacheValidity();
+                        
+                        if (!validityCheck.valid) {
+                            console.log('[页面可见性] 缓存需要刷新，执行后台更新...');
+                            try {
+                                await refreshCache();
+                            } catch (error) {
+                                console.error('[页面可见性] 后台刷新失败:', error);
+                            }
+                        }
+                    }
+                };
+                
+                // 定期检查缓存状态（每30分钟）
+                let cacheCheckInterval = null;
+                const startCacheCheckInterval = () => {
+                    if (cacheCheckInterval) clearInterval(cacheCheckInterval);
+                    
+                    cacheCheckInterval = setInterval(async () => {
+                        console.log('[定期检查] 检查缓存状态...');
+                        const validityCheck = CacheManager.checkCacheValidity();
+                        
+                        if (!validityCheck.valid) {
+                            console.log('[定期检查] 缓存需要刷新，执行后台更新...');
+                            try {
+                                await refreshCache();
+                            } catch (error) {
+                                console.error('[定期检查] 后台刷新失败:', error);
+                            }
+                        }
+                    }, 30 * 60 * 1000); // 30分钟
+                };
+                
                 // 组件挂载时添加事件监听器并加载数据
                 onMounted(async () => {
                     document.addEventListener('keydown', handleKeydown);
                     document.addEventListener('click', handleDocumentClick);
+                    document.addEventListener('visibilitychange', handleVisibilityChange);
                     
-                    // 页面加载时自动加载数据
+                    // 页面加载时使用智能数据加载
                     try {
                         loading.value = true;
-                        await Promise.all([
-                            loadInventoryFromSupabase(),
-                            loadHistoryFromSupabase(),
-                            loadOutboundFromSupabase() // 添加出库记录加载
-                        ]);
+                        await smartLoadData();
                         console.log('页面初始化数据加载完成');
                     } catch (error) {
                         console.error('页面初始化数据加载失败:', error);
@@ -5026,14 +5199,19 @@
                         console.error('WebSocket服务器可用性检测失败:', error);
                     }
                     
-                    // 首次访问时自动更新缓存
-                    await handleFirstVisit();
+                    // 启动定期检查
+                    startCacheCheckInterval();
                 });
                 
                 // 组件卸载时移除事件监听器
                 onUnmounted(() => {
                     document.removeEventListener('keydown', handleKeydown);
                     document.removeEventListener('click', handleDocumentClick);
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                    if (cacheCheckInterval) {
+                        clearInterval(cacheCheckInterval);
+                        cacheCheckInterval = null;
+                    }
                 });
                 
                 // 库存视图模式
@@ -8532,20 +8710,20 @@
                             await insertHistoryToSupabase(historyItem);
                         }
 
-                        // 同步到 team_notes 表（供加工系统使用）
-                        await syncToTeamNotes(outboundForm, processedItems);
+                        // 异步同步到 team_notes 表，不阻塞用户操作
+                        syncToTeamNotes(outboundForm, processedItems).catch(err => console.error('同步到team_notes失败:', err));
 
                         // 出库成功后，生成打印数据并提示用户打印
                         const printData = generatePrintData(outboundForm, false, false);
-                        await showEnhancedPrintOptions(printData);
+                        
+                        // 异步显示打印选项，不阻塞成功消息
+                        showEnhancedPrintOptions(printData).catch(err => console.error('显示打印选项失败:', err));
                         
                         ElMessage.success(`出库成功！出库类型：${getOutTypeName(outboundForm.out_type)}，单号：${outboundForm.out_no}`);
                         
-                        // 刷新数据以确保同步
-                        console.log('正在刷新缓存...');
-                        await refreshCache();
-                        
-                        console.log('数据刷新完成，当前出库单号:', outboundForm.out_no);
+                        // 异步刷新缓存，不阻塞用户操作
+                        console.log('正在后台刷新缓存...');
+                        refreshCache().catch(err => console.error('后台刷新缓存失败:', err));
                         
                         resetOutboundForm();
                         calculateStatistics();
@@ -9639,12 +9817,6 @@
                                     📡 远程打印
                                 </button>
                                 ` : ''}
-                                <button class="print-option-btn success" onclick="event.stopPropagation(); event.preventDefault(); window.handleGenerateQR()">
-                                    📱 扫码打印
-                                </button>
-                                <button class="print-option-btn warning" onclick="event.stopPropagation(); event.preventDefault(); window.handleSavePDF()">
-                                    💾 保存PDF
-                                </button>
                             </div>
                         </div>`,
                         '出库完成',
@@ -9890,6 +10062,9 @@
                                         📡 远程打印
                                     </button>
                                     ` : ''}
+                                    <button class="print-option-btn warning" onclick="event.stopPropagation(); event.preventDefault(); window.handleSavePDF()">
+                                        💾 保存PDF
+                                    </button>
                                 </div>
                             </div>`,
                             '选择打印方式',
@@ -10322,143 +10497,6 @@
 
 
                 // 生成二维码打印（移动端）
-                const handleGenerateQR = () => {
-                    try {
-                        const printData = window.currentPrintData;
-                        if (!printData) {
-                            ElMessage.warning('打印数据不存在');
-                            return;
-                        }
-                        
-                        console.log('生成QR码，打印数据:', printData);
-                        
-                        // 验证打印数据的有效性
-                        if (typeof printData !== 'object') {
-                            ElMessage.error('打印数据格式错误');
-                            return;
-                        }
-                        
-                        // 清理和简化打印数据，避免QR码生成失败
-                        const simplifiedData = {
-                            type: printData.type || 'unknown',
-                            title: printData.title || '打印单',
-                            outNo: printData.outNo || printData.ref_no || '',
-                            outDate: printData.outDate || '',
-                            unit: printData.unit || '',
-                            vehicleNo: printData.vehicleNo || '',
-                            batches: (printData.batches || []).slice(0, 5).map(batch => ({
-                                batchNo: batch.batchNo || '',
-                                material: batch.material || '',
-                                specification: batch.specification || '',
-                                weight: batch.weight || 0
-                            }))
-                        };
-                        
-                        // 创建包含打印数据的URL
-                        const encodedData = btoa(encodeURIComponent(JSON.stringify(simplifiedData)));
-                        const printUrl = `${window.location.origin}${window.location.pathname}?print=${encodedData}`;
-                        
-                        console.log('生成的打印URL:', printUrl);
-                        console.log('简化后的数据:', simplifiedData);
-                        
-                        // 检查URL长度（QR码有长度限制）
-                        if (printUrl.length > 1000) {
-                            console.warn('URL过长，可能导致QR码生成失败，长度:', printUrl.length);
-                            ElMessage.warning('打印数据过多，可能导致二维码生成失败');
-                        }
-                        
-                        // 创建二维码弹窗
-                        ElMessageBox.confirm(
-                            `<div style="text-align: center; padding: 20px;">
-                                <h3>📱 手机端打印方案</h3>
-                                <p style="color: #666; margin: 15px 0;">请扫描下方二维码，在连接打印机的电脑上打开</p>
-                                <div id="qrcode-container" style="display: flex; justify-content: center; margin: 20px 0;"></div>
-                                <div style="color: #999; font-size: 12px; margin-top: 10px;">或复制链接：${printUrl.substring(0, 50)}...</div>
-                            </div>`,
-                            '出库单打印',
-                            {
-                                dangerouslyUseHTMLString: true,
-                                confirmButtonText: '已打印',
-                                cancelButtonText: '取消打印',
-                                showClose: false
-                            }
-                        ).then(() => {
-                            ElMessage.success('打印完成');
-                        }).catch(() => {
-                            // 用户取消
-                        });
-                        
-                        // 延迟加载二维码
-                        setTimeout(() => {
-                            try {
-                                const container = document.getElementById('qrcode-container');
-                                if (container) {
-                                    container.innerHTML = '';
-                                    
-                                    // 检查QRCode是否可用
-                                    if (typeof QRCode === 'undefined') {
-                                        console.error('QRCode库未加载');
-                                        container.innerHTML = '<p style="color: red;">二维码库加载失败</p>';
-                                        return;
-                                    }
-                                    
-                                    // 验证printUrl
-                                    if (!printUrl || typeof printUrl !== 'string') {
-                                        console.error('无效的打印URL:', printUrl);
-                                        container.innerHTML = '<p style="color: red;">打印数据无效，无法生成二维码</p>';
-                                        return;
-                                    }
-                                    
-                                    try {
-                                        // 创建二维码 - 使用较低的纠错级别以提高成功率
-                                        new QRCode(container, {
-                                            text: printUrl,
-                                            width: 200,
-                                            height: 200,
-                                            colorDark: "#000000",
-                                            colorLight: "#ffffff",
-                                            correctLevel: QRCode.CorrectLevel.L // 使用低级纠错，提高成功率
-                                        });
-                                    } catch (innerError) {
-                                        console.error('QR码创建失败:', innerError);
-                                        // 尝试简化URL重新生成
-                                        const simpleUrl = window.location.origin + '?print=simple';
-                                        try {
-                                            container.innerHTML = ''; // 清空容器
-                                            new QRCode(container, {
-                                                text: simpleUrl,
-                                                width: 200,
-                                                height: 200,
-                                                colorDark: "#000000",
-                                                colorLight: "#ffffff",
-                                                correctLevel: QRCode.CorrectLevel.L
-                                            });
-                                            container.innerHTML += '<p style="color: orange; font-size: 12px; margin-top: 10px;">使用简化数据生成</p>';
-                                        } catch (fallbackError) {
-                                            console.error('QR码简化重试也失败:', fallbackError);
-                                            container.innerHTML = '<p style="color: red;">二维码生成失败，请手动复制链接</p>';
-                                        }
-                                    }
-                                    
-                                    console.log('QR码生成成功');
-                                } else {
-                                    console.error('找不到二维码容器');
-                                }
-                            } catch (qrError) {
-                                console.error('QR码生成失败:', qrError);
-                                const container = document.getElementById('qrcode-container');
-                                if (container) {
-                                    container.innerHTML = '<p style="color: red;">二维码生成失败</p>';
-                                }
-                            }
-                        }, 100);
-                        
-                    } catch (error) {
-                        console.error('生成二维码时出错:', error);
-                        ElMessage.error('生成二维码失败: ' + error.message);
-                    }
-                };
-
                 // 保存为PDF
                 const handleSavePDF = async () => {
                     const printData = window.currentPrintData;
@@ -10469,29 +10507,62 @@
                     
                     try {
                         // 生成打印内容
-                        const printHTML = generatePrintHTML(printData);
+                        const printHTML = await generatePrintHTML(printData);
                         
                         // 创建临时iframe来生成PDF
                         const iframe = document.createElement('iframe');
-                        iframe.style.display = 'none';
+                        iframe.style.position = 'absolute';
+                        iframe.style.left = '-9999px';
+                        iframe.style.top = '0';
+                        iframe.style.width = '800px';
+                        iframe.style.height = '600px';
+                        iframe.style.visibility = 'hidden';
                         document.body.appendChild(iframe);
                         
                         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        iframeDoc.open();
                         iframeDoc.write(printHTML);
                         iframeDoc.close();
                         
-                        // 等待内容加载
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        // 等待iframe内容完全加载
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                resolve();
+                            }, 3000);
+                            
+                            if (iframeDoc.readyState === 'complete') {
+                                clearTimeout(timeout);
+                                resolve();
+                            } else {
+                                iframe.onload = () => {
+                                    clearTimeout(timeout);
+                                    // 额外等待样式和字体加载
+                                    setTimeout(resolve, 500);
+                                };
+                            }
+                        });
                         
-                        // 使用html2canvas生成图片
+                        // 使用html2canvas生成图片，增加配置确保图片质量
                         const canvas = await html2canvas(iframeDoc.body, {
-                            scale: 2,
+                            scale: 3,
                             useCORS: true,
-                            logging: false
+                            logging: false,
+                            allowTaint: true,
+                            backgroundColor: '#ffffff',
+                            width: iframeDoc.body.scrollWidth,
+                            height: iframeDoc.body.scrollHeight,
+                            windowWidth: iframeDoc.body.scrollWidth,
+                            windowHeight: iframeDoc.body.scrollHeight,
+                            onclone: (clonedDoc) => {
+                                // 确保克隆的文档样式正确
+                                const clonedBody = clonedDoc.body;
+                                clonedBody.style.width = iframeDoc.body.scrollWidth + 'px';
+                                clonedBody.style.height = iframeDoc.body.scrollHeight + 'px';
+                            }
                         });
                         
                         // 将canvas转换为图片
-                        const imgData = canvas.toDataURL('image/png');
+                        const imgData = canvas.toDataURL('image/png', 1.0);
                         
                         // 创建下载链接
                         const link = document.createElement('a');
@@ -10500,7 +10571,9 @@
                         link.click();
                         
                         // 清理
-                        document.body.removeChild(iframe);
+                        if (iframe.parentNode) {
+                            document.body.removeChild(iframe);
+                        }
                         
                         ElMessage.success('已保存为PNG图片');
                     } catch (error) {
@@ -10862,7 +10935,6 @@
                     
                     // 将函数挂载到全局
                     window.handleDirectPrint = handleDirectPrint;
-                    window.handleGenerateQR = handleGenerateQR;
                     window.handleSavePDF = handleSavePDF;
                     window.handleRemotePrint = handleRemotePrint;
                 });
@@ -11023,7 +11095,6 @@
                     
                     // 打印方法
                     handleDirectPrint,
-                    handleGenerateQR,
                     handleSavePDF,
                     reprintTicket,
                     
