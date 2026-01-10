@@ -473,6 +473,7 @@ const server = app.listen(17027, '0.0.0.0', () => {
 console.log('✅ WebSocket打印服务器已启动，监听端口 17026');
 console.log('📡 服务器地址: ws://localhost:17026');
 console.log('🌐 远程访问地址: wss://103.91.208.133:61098');
+console.log('🌐 远程访问地址: wss://free.frpee.top:17025');
 
 // 存储连接
 const printers = new Map();        // 打印机客户端

@@ -8450,16 +8450,11 @@
                         // 处理每个批号的出库并收集处理结果
                         processedItems = [];
                         
-                        // 性能优化：使用Promise.all并行处理批号，大幅提升处理速度
-                        const processingPromises = outboundForm.batchItems.map(async (batchItem, index) => {
+                        // 使用顺序处理替代并发处理，确保事务性
+                        for (const batchItem of outboundForm.batchItems) {
                             // 检查batchItem是否存在
                             if (!batchItem || !batchItem.batch_no) {
                                 throw new Error(`批号数据异常`);
-                            }
-                            
-                            // 显示处理进度
-                            if (outboundForm.batchItems.length > 1) {
-                                ElMessage.info(`正在处理第 ${index + 1}/${outboundForm.batchItems.length} 个批号: ${batchItem.batch_no}`);
                             }
                             
                             // 从数据库查询最新的库存记录，确保数据一致性
@@ -8496,17 +8491,17 @@
                             
                             // 更新本地数据
                             const updatedItem = { ...inventoryItem, ...updates };
-                            const dataIndex = inventoryData.value.findIndex(item => item.id === inventoryItem.id);
-                            if (dataIndex !== -1) {
-                                inventoryData.value[dataIndex] = updatedItem;
+                            const index = inventoryData.value.findIndex(item => item.id === inventoryItem.id);
+                            if (index !== -1) {
+                                inventoryData.value[index] = updatedItem;
                             }
                             
                             // 存储处理结果，供重试逻辑使用
-                            const processedItem = {
+                            processedItems.push({
                                 batchItem,
                                 inventoryItem,
                                 updatedItem
-                            };
+                            });
                             
                             // 添加出库历史记录
                             // 确保出库重量保留3位小数
@@ -8535,17 +8530,10 @@
                             
                             // 插入出库历史记录
                             await insertHistoryToSupabase(historyItem);
-                            
-                            return processedItem;
-                        });
-                        
-                        // 等待所有批号处理完成
-                        processedItems = await Promise.all(processingPromises);
+                        }
 
-                        // 性能优化：异步同步到 team_notes 表，不阻塞主流程
-                        syncToTeamNotes(outboundForm, processedItems).catch(error => {
-                            console.error('异步同步到 team_notes 表失败:', error);
-                        });
+                        // 同步到 team_notes 表（供加工系统使用）
+                        await syncToTeamNotes(outboundForm, processedItems);
 
                         // 出库成功后，生成打印数据并提示用户打印
                         const printData = generatePrintData(outboundForm, false, false);
@@ -8553,12 +8541,11 @@
                         
                         ElMessage.success(`出库成功！出库类型：${getOutTypeName(outboundForm.out_type)}，单号：${outboundForm.out_no}`);
                         
-                        // 性能优化：异步刷新缓存，不阻塞用户操作
-                        setTimeout(async () => {
-                            console.log('正在异步刷新缓存...');
-                            await refreshCache();
-                            console.log('数据刷新完成，当前出库单号:', outboundForm.out_no);
-                        }, 100);
+                        // 刷新数据以确保同步
+                        console.log('正在刷新缓存...');
+                        await refreshCache();
+                        
+                        console.log('数据刷新完成，当前出库单号:', outboundForm.out_no);
                         
                         resetOutboundForm();
                         calculateStatistics();
