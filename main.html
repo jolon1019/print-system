@@ -785,6 +785,84 @@
         .ws-url-warning li {
             margin: 3px 0;
         }
+        
+        /* 图片模态框样式 */
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1004;
+            justify-content: center;
+            align-items: center;
+        }
+        .image-modal.active {
+            display: flex;
+        }
+        .image-modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        @media (max-width: 480px) {
+            .image-modal-content {
+                width: 95%;
+                max-height: 85vh;
+            }
+        }
+        .image-modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .image-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .image-modal-header .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+        }
+        .image-modal-header .close-btn:hover {
+            color: #333;
+        }
+        @media (max-width: 480px) {
+            .image-modal-header {
+                padding: 15px;
+            }
+            .image-modal-header h3 {
+                font-size: 16px;
+            }
+            .image-modal-header .close-btn {
+                font-size: 24px;
+                width: 28px;
+                height: 28px;
+                line-height: 28px;
+            }
+        }
+        .image-modal-body {
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
         .ws-setting-btn {
             background: none;
             border: 1px solid #dcdfe6;
@@ -3135,6 +3213,11 @@
                 <el-button type="danger" size="small" @click="clearAllCache">🗑️ 清空缓存</el-button>
             </div>
             
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <el-button type="success" size="small" @click="exportToExcel" :disabled="filteredInventory.length === 0">📤 导出Excel</el-button>
+                <el-button type="primary" size="small" @click="showImportDialog">📥 导入Excel</el-button>
+            </div>
+            
             <div style="margin-top: 10px; font-size: 11px; color: #666; line-height: 1.4;">
                 <p>💡 缓存说明：</p>
                 <p>• 首次访问自动刷新缓存</p>
@@ -3158,13 +3241,6 @@
         <div class="print-management-panel" :class="{ open: printPanelOpen }">
             <div class="panel-header">
                 <h3>🖨️ 打印机管理</h3>
-
-                <!-- 导出/导入Excel按钮 -->
-                <div class="print-controls-in-panel" style="display: flex; gap: 10px;">
-                    <el-button type="success" size="small" @click="exportToExcel" :disabled="filteredInventory.length === 0">📤 导出Excel</el-button>
-                    <el-button type="primary" size="small" @click="showImportDialog">📥 导入Excel</el-button>
-                </div>
-
             </div>
             
             <div class="panel-body">
@@ -3492,11 +3568,23 @@
             </div>
         </div>
 
+        <div class="image-modal" :class="{ active: showImageModal }">
+            <div class="image-modal-content">
+                <div class="image-modal-header">
+                    <h3>开票费</h3>
+                    <button @click="showImageModal = false" class="close-btn">&times;</button>
+                </div>
+                <div class="image-modal-body">
+                    <img src="https://kucun.free.nf/pic/kpf.png" alt="图片" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+                </div>
+            </div>
+        </div>
+
         <div class="app-container">
             <!-- 头部 -->
             <div class="header">
-                <h1>🏭 热卷出入库管理系统</h1>
-                <p>Supabase云端存储版本 - 数据实时同步V2</p>
+                <h1>🏭 热卷管理v2</h1>
+
                 
                 <!-- 刷新数据按钮 -->
                 <div style="margin-top: 15px; display: flex; align-items: center; gap: 15px; justify-content: space-between;">
@@ -3504,7 +3592,7 @@
                     <div class="sync-status" @click="refreshData" style="cursor: pointer; user-select: none; display: flex; align-items: center; gap: 10px;">
                         <div class="sync-indicator" :class="syncStatusClass"></div>
                         <span>{{ syncStatusText }}</span>
-                        <span class="last-sync-time" v-if="lastSyncTime">最后同步: {{ lastSyncTime }}</span>
+                
                     </div>
                     
                     <!-- 财务管理按钮 -->
@@ -3519,19 +3607,42 @@
                             padding: 8px 16px; 
                             border-radius: 6px; 
                             cursor: pointer; 
-                            font-size: 14px; 
+                            font-size: 12px; 
                             display: flex; 
                             align-items: center; 
                             gap: 8px;
                             transition: all 0.3s ease;
-                            min-width: 120px;
+                            min-width: 80px;
                             justify-content: center;
                             text-decoration: none;
                             margin-left: 10px;
                         "
                     >
-                        <span>💰</span>
-                        财务系统
+                     
+                        财务
+                    </a>
+                    <a 
+                        href="#" 
+                        @click.prevent="showImageModal = true"
+                        class="finance-btn"
+                        style="
+                        background: rgba(255, 255, 255, 0.2); 
+                        border: 1px solid rgba(255, 255, 255, 0.3); 
+                        color: white; 
+                        padding: 8px 16px; 
+                        border-radius: 6px; 
+                        cursor: pointer; 
+                        font-size: 12px; 
+                        display: flex; 
+                        align-items: center; 
+                        gap: 8px; 
+                        transition: 0.3s; 
+                        min-width: 80px; 
+                        justify-content: center; 
+                        text-decoration: none; 
+                        margin-left: 10px;"
+                    >
+                        费用
                     </a>
                 </div>
             </div>
@@ -5622,6 +5733,7 @@
                 
                 // WebSocket服务器URL设置对话框相关
                 const showWsUrlDialog = ref(false);
+                const showImageModal = ref(false);
                 const newWsServerUrl = ref('');
                 const wsUrlError = ref('');
                 
@@ -7803,7 +7915,7 @@
                             <p><strong>单位：</strong>${item.unit}</p>
                             <p><strong>规格：</strong>${item.specification}</p>
                             <p><strong>材质：</strong>${item.material}</p>
-                            <p><strong>重量：</strong>{{ parseFloat(parseFloat(item.weight).toFixed(3)) }} 吨</p>
+                            <p><strong>重量：</strong>${parseFloat(parseFloat(item.weight).toFixed(3))} 吨</p>
                             <p><strong>运费：</strong>${item.transport_fee ? `¥${item.transport_fee.toLocaleString()}` : '未记录'}</p>
                             <p><strong>垫付：</strong>${item.advance_payment ? `¥${item.advance_payment.toLocaleString()}` : '无'}</p>
                             <p><strong>库位：</strong>${item.storage_location || '未指定'}</p>
@@ -11032,6 +11144,9 @@
                     validateWsUrl,
                     confirmWsUrlChange,
                     cancelWsUrlChange,
+                    
+                    // 图片模态框相关
+                    showImageModal,
                     
                     // 移除不再需要的Search组件
                     

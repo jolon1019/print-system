@@ -248,3 +248,36 @@ ipcMain.on('update-remote-url', (event, newUrl) => {
     mainWindow?.webContents.send('remote-url-updated', { success: false, error: error.message });
   }
 });
+
+ipcMain.on('kill-port-17026', () => {
+  const batPath = path.join(__dirname, 'kill-port-17026-en.bat');
+  
+  const killProcess = spawn('cmd.exe', ['/c', batPath], {
+    cwd: __dirname,
+    shell: true
+  });
+
+  killProcess.stdout.on('data', (data) => {
+    mainWindow?.webContents.send('log-message', {
+      service: '库存系统',
+      message: data.toString(),
+      type: 'info'
+    });
+  });
+
+  killProcess.stderr.on('data', (data) => {
+    mainWindow?.webContents.send('log-message', {
+      service: '库存系统',
+      message: data.toString(),
+      type: 'error'
+    });
+  });
+
+  killProcess.on('close', (code) => {
+    mainWindow?.webContents.send('log-message', {
+      service: '库存系统',
+      message: `端口清理完成，退出码: ${code}`,
+      type: code === 0 ? 'success' : 'error'
+    });
+  });
+});

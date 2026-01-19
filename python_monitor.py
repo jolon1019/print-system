@@ -13,7 +13,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 # 配置 - 您的坐标和备选方案
 CONFIG = {
-    'scan_interval': 1.0,
+    'scan_interval': 2.0,
     'keywords': ['打印窗口'],
     
     # 主要坐标 (您的坐标)

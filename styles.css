@@ -125,9 +125,9 @@ body {
 }
 
 .status-indicator.running {
-  color: #4caf50;
+  color: #2e7d32;
   animation: pulse 2s infinite;
-  text-shadow: 0 0 15px rgba(76, 175, 80, 0.8);
+  text-shadow: 0 0 15px rgba(46, 125, 50, 0.8);
 }
 
 .status-indicator.stopped {
@@ -206,7 +206,7 @@ body {
 
 .card-status.running {
   background: #e8f5e9;
-  color: #4caf50;
+  color: #2e7d32;
 }
 
 .card-status.stopped {
@@ -355,7 +355,7 @@ body {
 
 .service-status.running {
   background: #e8f5e9;
-  color: #4caf50;
+  color: #2e7d32;
 }
 
 .service-status.stopped {
@@ -489,7 +489,7 @@ body {
 }
 
 .log-message.success {
-  color: #4caf50;
+  color: #2e7d32;
 }
 
 .log-message.warning {

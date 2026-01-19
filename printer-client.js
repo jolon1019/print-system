@@ -17,15 +17,68 @@ if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
 
+// 日志配置
+const LOG_CONFIG = {
+  maxSize: 100 * 1024 * 1024, // 100MB
+  maxFiles: 10 // 最多保留10个历史日志文件
+};
+
 // 日志函数
 function log(message, type = 'info') {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
   console.log(logMessage);
   
+  const dateStr = new Date().toISOString().split('T')[0];
+  let logFile = path.join(logDir, `print-client-${dateStr}.log`);
+  
+  // 检查日志文件大小，如果超过限制则轮转
+  if (fs.existsSync(logFile)) {
+    const stats = fs.statSync(logFile);
+    if (stats.size >= LOG_CONFIG.maxSize) {
+      // 轮转日志文件
+      let counter = 1;
+      let rotatedFile;
+      
+      // 找到可用的轮转文件名
+      do {
+        rotatedFile = path.join(logDir, `print-client-${dateStr}.${counter}.log`);
+        counter++;
+      } while (fs.existsSync(rotatedFile) && counter <= LOG_CONFIG.maxFiles);
+      
+      // 重命名当前日志文件
+      fs.renameSync(logFile, rotatedFile);
+      
+      // 清理过期的轮转日志
+      cleanupOldLogs(dateStr);
+    }
+  }
+  
   // 写入日志文件
-  const logFile = path.join(logDir, `print-client-${new Date().toISOString().split('T')[0]}.log`);
   fs.appendFileSync(logFile, logMessage + '\n', 'utf8');
+}
+
+// 清理过期的轮转日志
+function cleanupOldLogs(dateStr) {
+  try {
+    const files = fs.readdirSync(logDir);
+    const logFiles = files
+      .filter(f => f.startsWith(`print-client-${dateStr}`) && f.endsWith('.log'))
+      .sort((a, b) => {
+        // 按修改时间排序
+        const statA = fs.statSync(path.join(logDir, a));
+        const statB = fs.statSync(path.join(logDir, b));
+        return statA.mtime - statB.mtime;
+      });
+    
+    // 删除超过最大数量的旧日志
+    while (logFiles.length > LOG_CONFIG.maxFiles) {
+      const oldFile = logFiles.shift();
+      fs.unlinkSync(path.join(logDir, oldFile));
+    }
+  } catch (error) {
+    console.error('清理旧日志失败:', error);
+  }
 }
 
 // WebSocket连接

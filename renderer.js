@@ -286,3 +286,8 @@ function editRemoteAccessUrl() {
     }
   }
 }
+
+function killPort17026() {
+  addLog('库存系统', '正在清理端口 17026...', 'info');
+  ipcRenderer.send('kill-port-17026');
+}
