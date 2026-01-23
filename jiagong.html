@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <!-- 针对老款华为手机的兼容性优化 -->
     <script>
         // 检测是否为老款华为浏览器
@@ -550,15 +550,30 @@
             align-items: center;
             gap: 10px;
             background: rgba(255,255,255,0.2);
-            padding: 8px 15px;
+            padding: 8px 16px;
             border-radius: 20px;
-            font-size: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
         }
+        
+        .sync-status:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .sync-status:active {
+            transform: translateY(0);
+        }
+        
         .sync-indicator {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             animation: pulse 2s infinite;
+            flex-shrink: 0;
         }
         .sync-online { background: #67c23a; }
         .sync-offline { background: #909399; }
@@ -978,6 +993,18 @@
                 gap: 10px;
             }
             
+            /* 状态指示器移动端适配 */
+            .sync-status {
+                padding: 6px 12px;
+                font-size: 11px;
+                gap: 6px;
+            }
+            
+            .sync-indicator {
+                width: 8px;
+                height: 8px;
+            }
+            
             .toggle-team-stats-btn {
                 padding: 10px 16px;
                 font-size: 13px;
@@ -1053,6 +1080,18 @@
             
             .stat-card {
                 padding: 8px;
+            }
+            
+            /* 状态指示器小屏幕适配 */
+            .sync-status {
+                padding: 5px 10px;
+                font-size: 10px;
+                gap: 5px;
+            }
+            
+            .sync-indicator {
+                width: 7px;
+                height: 7px;
             }
             
             .order-card {

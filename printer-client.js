@@ -399,10 +399,7 @@ function generatePrintHTML(data) {
       const summaryTotal = data.summary?.totalAmount
         ? (parseFloat(String(data.summary.totalAmount).replace(/[^\d.-]/g, '')) || numericTotal)
         : numericTotal;
-      const totalAmountDisplay = summaryTotal.toLocaleString('zh-CN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
+      const totalAmountDisplay = Math.ceil(summaryTotal).toLocaleString('zh-CN');
       
       // 计算总重量
       const totalWeight = (data.batchItems || []).reduce((sum, item) => {

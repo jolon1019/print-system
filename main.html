@@ -7,13 +7,13 @@
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <!-- 添加Excel导出库 -->
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <!-- 添加二维码生成库 -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
     <!-- 添加html2canvas用于生成图片 -->
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -64,25 +64,67 @@
             font-size: clamp(1.5rem, 4vw, 2rem);
         }
         
+        /* 统一的状态指示器样式 */
+        .status-indicator {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        
+        .status-indicator:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .status-indicator:active {
+            transform: translateY(0);
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            flex-shrink: 0;
+        }
+        
         /* 同步状态指示器 */
         .sync-status {
-            position: absolute;
-            top: 20px;
-            right: 20px;
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
             gap: 10px;
             background: rgba(255,255,255,0.2);
-            padding: 8px 15px;
+            padding: 8px 16px;
             border-radius: 20px;
-            font-size: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
         }
+        
+        .sync-status:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .sync-status:active {
+            transform: translateY(0);
+        }
+        
         .sync-indicator {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             animation: pulse 2s infinite;
+            flex-shrink: 0;
         }
         .sync-online { background: #67c23a; }
         .sync-offline { background: #909399; }
@@ -151,23 +193,24 @@
             border: 1px solid rgba(255,255,255,0.3); 
             color: white; 
             padding: 8px 16px; 
-            border-radius: 6px; 
+            border-radius: 20px; 
             cursor: pointer; 
-            font-size: 14px; 
+            font-size: 13px; 
             display: flex; 
             align-items: center; 
             gap: 8px;
             transition: all 0.3s ease;
-            min-width: 120px;
+            min-width: 80px;
             justify-content: center;
             text-decoration: none;
-            margin-left: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            user-select: none;
         }
         
         .finance-btn:hover {
             background: rgba(255,255,255,0.3) !important;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         
         .finance-btn:active {
@@ -176,24 +219,27 @@
         
         /* WebSocket连接状态指示器 */
         .ws-status {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            padding: 8px 15px;
+            padding: 8px 16px;
             border-radius: 20px;
-            font-size: 12px;
-            z-index: 10000;
+            font-size: 13px;
             display: flex;
             align-items: center;
             gap: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
+            user-select: none;
         }
+        
         .ws-status:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
+        
+        .ws-status:active {
+            transform: translateY(0);
+        }
+        
         .ws-status.connected {
             background: #67c23a;
             color: white;
@@ -206,25 +252,24 @@
             background: #e6a23c;
             color: white;
         }
+        
         .ws-indicator {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             animation: pulse 2s infinite;
+            flex-shrink: 0;
         }
+        
         .ws-connected { background: #67c23a; }
         .ws-disconnected { background: #f56c6c; }
         .ws-connecting { background: #e6a23c; animation: spin 1s linear infinite; }
         
         /* 缓存状态指示器 */
         .cache-status {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            padding: 8px 15px;
+            padding: 8px 16px;
             border-radius: 20px;
-            font-size: 12px;
-            z-index: 10000;
+            font-size: 13px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -232,7 +277,8 @@
             background: #409EFF;
             color: white;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
+            user-select: none;
         }
         
         .cache-status:hover {
@@ -240,11 +286,16 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         
+        .cache-status:active {
+            transform: translateY(0);
+        }
+        
         .cache-indicator {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             animation: pulse 2s infinite;
+            flex-shrink: 0;
         }
         
         .cache-loading {
@@ -299,13 +350,6 @@
         
         /* 移动端适配 */
         @media (max-width: 768px) {
-            .cache-status {
-                top: 5px;
-                left: 5px;
-                padding: 6px 10px;
-                font-size: 10px;
-            }
-            
             .cache-control-panel {
                 width: 280px;
                 top: 40px;
@@ -407,6 +451,28 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+        .panel-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .panel-close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #909399;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        .panel-close-btn:hover {
+            background: #f0f0f0;
+            color: #606266;
         }
         .panel-body {
             flex: 1;
@@ -678,6 +744,139 @@
             font-size: 12px;
         }
         
+        /* 图片预览模态框 */
+        .image-preview-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.75);
+            z-index: 1004;
+            justify-content: center;
+            align-items: center;
+        }
+        .image-preview-modal.active {
+            display: flex;
+        }
+        .image-preview-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .image-preview-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+        }
+        .image-preview-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #303133;
+        }
+        .image-preview-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #909399;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        .image-preview-close:hover {
+            background: #f0f0f0;
+            color: #606266;
+        }
+        .image-preview-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            background: #f5f7fa;
+        }
+        .image-preview-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .image-preview-footer {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            background: white;
+        }
+        .image-preview-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+        .image-preview-btn.primary {
+            background: #409EFF;
+            color: white;
+        }
+        .image-preview-btn.primary:hover {
+            background: #337ecc;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+        }
+        .image-preview-btn.default {
+            background: #f0f0f0;
+            color: #606266;
+        }
+        .image-preview-btn.default:hover {
+            background: #e0e0e0;
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .image-preview-content {
+                width: 95%;
+                max-height: 95vh;
+            }
+            .image-preview-header {
+                padding: 15px;
+            }
+            .image-preview-header h3 {
+                font-size: 16px;
+            }
+            .image-preview-body {
+                padding: 15px;
+            }
+            .image-preview-footer {
+                padding: 15px;
+                flex-direction: column;
+            }
+            .image-preview-btn {
+                width: 100%;
+                padding: 12px 20px;
+            }
+        }
+        
         /* WebSocket服务器URL设置对话框 */
         .ws-url-modal {
             display: none;
@@ -892,6 +1091,9 @@
             -webkit-overflow-scrolling: touch;
             white-space: nowrap;
             scrollbar-width: none;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         .nav-tabs::-webkit-scrollbar {
             display: none;
@@ -1618,14 +1820,6 @@
             
             .header h1 {
                 font-size: 1.3rem;
-            }
-            
-            /* 同步状态指示器优化 */
-            .sync-status {
-                right: 10px;
-                top: 10px;
-                font-size: 12px;
-                padding: 6px 10px;
             }
             
             /* 导航标签优化 */
@@ -2591,6 +2785,62 @@
             background: #409EFF;
             color: white;
         }
+        
+        /* 批号记录卡片展开/收起样式 */
+        .batch-detail-card {
+            border-bottom: 1px dashed #272833;
+            padding: 4px 0;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .batch-detail-card:hover {
+            background: #f5f7fa;
+        }
+        
+        .batch-detail-card:focus {
+            outline: 2px solid #409EFF;
+            outline-offset: 2px;
+        }
+        
+        .batch-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        
+        .batch-detail-content {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+        }
+        
+        .batch-detail-content.expanded {
+            max-height: 500px;
+            opacity: 1;
+            padding-top: 8px;
+        }
+        
+        .batch-expand-icon {
+            transition: transform 0.3s ease;
+            font-size: 12px;
+            color: #909399;
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+        
+        .batch-detail-card.expanded .batch-expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .batch-detail-card:focus-visible {
+            outline: 2px solid #409EFF;
+            outline-offset: 2px;
+        }
+        
         .total-amount {
             background: #f0f9ff;
             border: 1px solid #bae6fd;
@@ -2974,6 +3224,23 @@
                 display: flex;
             }
             
+            /* 状态指示器移动端适配 */
+            .cache-status,
+            .ws-status,
+            .sync-status,
+            .finance-btn {
+                padding: 6px 12px;
+                font-size: 11px;
+                gap: 6px;
+            }
+            
+            .cache-indicator,
+            .ws-indicator,
+            .sync-indicator {
+                width: 8px;
+                height: 8px;
+            }
+            
             .form-col {
                 min-width: 100%;
             }
@@ -3058,14 +3325,6 @@
                 width: 100%;
             }
             
-            /* WebSocket状态指示器移动端适配 */
-            .ws-status {
-                top: 5px;
-                right: 5px;
-                padding: 6px 10px;
-                font-size: 10px;
-            }
-            
             /* 打印控制按钮移动端适配 */
             .print-controls {
                 bottom: 70px;
@@ -3102,6 +3361,23 @@
             
             .coil-card {
                 padding: 15px;
+            }
+            
+            /* 状态指示器小屏幕适配 */
+            .cache-status,
+            .ws-status,
+            .sync-status,
+            .finance-btn {
+                padding: 5px 10px;
+                font-size: 10px;
+                gap: 5px;
+            }
+            
+            .cache-indicator,
+            .ws-indicator,
+            .sync-indicator {
+                width: 7px;
+                height: 7px;
             }
             
             .mobile-nav-item {
@@ -3177,18 +3453,6 @@
 </head>
 <body>
     <div id="app">
-        <!-- WebSocket状态指示器 -->
-        <div class="ws-status" :class="wsStatusClass" @click="togglePrintPanel">
-            <div class="ws-indicator" :class="'ws-' + wsStatus"></div>
-            <span>{{ wsStatusText }}</span>
-        </div>
-
-        <!-- 缓存状态指示器 -->
-        <div class="cache-status" @click="toggleCachePanel">
-            <div class="cache-indicator" :class="cacheStatusClass"></div>
-            <span>{{ cacheStatusText }}</span>
-        </div>
-
         <!-- 添加缓存控制面板 -->
         <div class="cache-control-panel" :class="{ open: cachePanelOpen }">
             <div style="font-weight: bold; margin-bottom: 10px;">缓存管理</div>
@@ -3241,6 +3505,7 @@
         <div class="print-management-panel" :class="{ open: printPanelOpen }">
             <div class="panel-header">
                 <h3>🖨️ 打印机管理</h3>
+                <button @click="togglePrintPanel" class="panel-close-btn">&times;</button>
             </div>
             
             <div class="panel-body">
@@ -3491,6 +3756,27 @@
             </div>
         </div>
 
+        <!-- 图片预览模态框 -->
+        <div class="image-preview-modal" :class="{ active: showImagePreview }">
+            <div class="image-preview-content">
+                <div class="image-preview-header">
+                    <h3>📷 图片预览</h3>
+                    <button @click="closeImagePreview" class="image-preview-close">&times;</button>
+                </div>
+                <div class="image-preview-body">
+                    <img :src="previewImageData" class="image-preview-img" alt="打印预览" />
+                </div>
+                <div class="image-preview-footer">
+                    <button @click="savePreviewImage" class="image-preview-btn primary">
+                        💾 保存图片
+                    </button>
+                    <button @click="closeImagePreview" class="image-preview-btn default">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- WebSocket服务器URL设置对话框 -->
         <div class="ws-url-modal" :class="{ active: showWsUrlDialog }">
             <div class="ws-url-content">
@@ -3591,14 +3877,24 @@
             <div class="header">
                 <h1>🏭 热卷管理v2</h1>
 
-                
-                <!-- 刷新数据按钮 -->
-                <div style="margin-top: 15px; display: flex; align-items: center; gap: 15px; justify-content: space-between;">
+                <!-- 状态指示器 -->
+                <div style="margin-top: 15px; display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap;">
+                    <!-- 缓存状态指示器 -->
+                    <div class="cache-status" @click="toggleCachePanel">
+                        <div class="cache-indicator" :class="cacheStatusClass"></div>
+                        <span>{{ cacheStatusText }}</span>
+                    </div>
+                    
+                    <!-- WebSocket状态指示器 -->
+                    <div class="ws-status" :class="wsStatusClass" @click="togglePrintPanel">
+                        <div class="ws-indicator" :class="'ws-' + wsStatus"></div>
+                        <span>{{ wsStatusText }}</span>
+                    </div>
+                    
                     <!-- 同步状态指示器 -->
-                    <div class="sync-status" @click="refreshData" style="cursor: pointer; user-select: none; display: flex; align-items: center; gap: 10px;">
+                    <div class="sync-status" @click="refreshData">
                         <div class="sync-indicator" :class="syncStatusClass"></div>
                         <span>{{ syncStatusText }}</span>
-                
                     </div>
                     
                     <!-- 财务管理按钮 -->
@@ -3606,47 +3902,15 @@
                         href="https://kucun.rf.gd/caiwu/finanace.html"
                         class="finance-btn"
                         target="_blank"
-                        style="
-                            background: rgba(255,255,255,0.2); 
-                            border: 1px solid rgba(255,255,255,0.3); 
-                            color: white; 
-                            padding: 8px 16px; 
-                            border-radius: 6px; 
-                            cursor: pointer; 
-                            font-size: 12px; 
-                            display: flex; 
-                            align-items: center; 
-                            gap: 8px;
-                            transition: all 0.3s ease;
-                            min-width: 80px;
-                            justify-content: center;
-                            text-decoration: none;
-                            margin-left: 10px;
-                        "
                     >
-                     
                         财务
                     </a>
+                    
+                    <!-- 费用按钮 -->
                     <a 
                         href="#" 
                         @click.prevent="showImageModal = true"
                         class="finance-btn"
-                        style="
-                        background: rgba(255, 255, 255, 0.2); 
-                        border: 1px solid rgba(255, 255, 255, 0.3); 
-                        color: white; 
-                        padding: 8px 16px; 
-                        border-radius: 6px; 
-                        cursor: pointer; 
-                        font-size: 12px; 
-                        display: flex; 
-                        align-items: center; 
-                        gap: 8px; 
-                        transition: 0.3s; 
-                        min-width: 80px; 
-                        justify-content: center; 
-                        text-decoration: none; 
-                        margin-left: 10px;"
                     >
                         费用
                     </a>
@@ -3741,6 +4005,13 @@
                                 @click="inventoryStatus = 'inStock'"
                             >
                                 在库库存
+                            </button>
+                            <button 
+                                class="status-toggle-btn" 
+                                :class="{ active: inventoryStatus === 'outStock' }"
+                                @click="inventoryStatus = 'outStock'"
+                            >
+                                出库库存
                             </button>
                         </div>
                         <!-- 视图切换按钮 -->
@@ -4156,10 +4427,18 @@
                                                 <span style="color: #f56c6c;">重量:</span>
                                                 <span>{{ Math.abs(parseFloat(outbound.change_weight)).toFixed(3) }} 吨</span>
                                             </div>
-                                            <div style="display: flex; justify-content: space-between;">
+                                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                                                 <span style="color: #f56c6c;">日期:</span>
                                                 <span>{{ formatDate(outbound.created_at) }}</span>
                                             </div>
+                                            <button 
+                                                class="view-kaiping-btn small" 
+                                                @click="viewKaipingDetail(outbound)" 
+                                                title="查看开平明细"
+                                                style="margin-top: 4px; width: 100%;"
+                                            >
+                                                📋 开平明细
+                                            </button>
                                         </div>
                                         <div v-if="getAllOutboundInfo(item.batch_no).length > 2" style="display: flex; align-items: center; color: #909399; font-size: 12px;">
                                             ...还有{{ getAllOutboundInfo(item.batch_no).length - 2 }}次出库
@@ -4333,7 +4612,7 @@
                                     clearable
                                 >
                                     <!-- 只显示有在库库存的单位 -->
-                                    <el-option v-for="unit in inStockUnits" :key="unit" :label="unit" :value="unit" />
+                                    <el-option v-for="unit in availableUnitsByStatus" :key="unit" :label="unit" :value="unit" />
                                 </el-select>
                             </el-form-item>
                         </div>
@@ -4400,7 +4679,7 @@
                             </el-table-column>
                             <el-table-column label="总价" min-width="200">
                                 <template #default="{ row }">
-                                    <span>{{ row.unit_price && row.out_weight ? `¥${(row.unit_price * row.out_weight).toFixed(2)}` : '0.00' }}</span>
+                                    <span>{{ row.unit_price && row.out_weight ? `¥${Math.ceil((parseFloat(row.unit_price) || 0) * (parseFloat(row.out_weight) || 0)).toLocaleString()}` : '0' }}</span>
                                 </template>
                             </el-table-column>
                             <el-table-column label="垫付" min-width="100">
@@ -4484,7 +4763,7 @@
                                     <div>
                                         <div style="color: #909399; font-size: 12px; margin-bottom: 4px;">总价</div>
                                         <div style="font-weight: 500; color: #67c23a;">
-                                            {{ item.unit_price && item.out_weight ? `¥${(item.unit_price * item.out_weight).toFixed(2)}` : '¥0.00' }}
+                                            {{ item.unit_price && item.out_weight ? `¥${Math.ceil((parseFloat(item.unit_price) || 0) * (parseFloat(item.out_weight) || 0)).toLocaleString()}` : '¥0' }}
                                         </div>
                                     </div>
                                     <div>
@@ -4539,7 +4818,7 @@
                         </div>
                         <div class="batch-summary-item">
                             <span>出库总金额:</span>
-                            <span>¥ {{ totalAmount.toFixed(2) }}</span>
+                            <span>¥ {{ Math.ceil(totalAmount).toLocaleString() }}</span>
                         </div>
                     </div>
 
@@ -4668,97 +4947,133 @@
                             <!-- 基本信息 -->
                             <div style="display: flex; flex-direction: column; gap: 8px;">
                                 <div style="font-size: 12px; color: #909399; font-weight: 500;">基本信息</div>
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: #606266;">单位:</span>
-                                    <span style="font-weight: 500;">{{ item.unit }}</span>
-                                </div>
-                                
-
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: #606266;">出库时间:</span>
-                                    <span style="font-weight: 500;">{{ formatDateTime(item.created_at) }}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: #606266;">装货车辆:</span>
-                                    <span style="font-weight: 500;">{{ item.vehicle_no }}</span>
-                                </div>
-
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: #606266;">备注:</span>
-                                    <span style="font-weight: 500;">{{ item.remark }}</span>
-                                </div>
-                                
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: #606266;">总价:</span>
-                                    <span style="font-weight: 500;">
-                                        {{ item.total_amount !== undefined && item.total_amount !== null && item.total_amount !== '' 
-                                            ? `¥${Number(item.total_amount).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
-                                            : '未记录' }}
-                                    </span>
+                                <div 
+                                    class="batch-detail-card"
+                                    :class="{ expanded: isBasicInfoExpanded(item.id) }"
+                                    @click="toggleBasicInfo(item.id, $event)"
+                                    @keydown.enter="toggleBasicInfo(item.id, $event)"
+                                    @keydown.space.prevent="toggleBasicInfo(item.id, $event)"
+                                    tabindex="0"
+                                    role="button"
+                                    :aria-expanded="isBasicInfoExpanded(item.id)"
+                                    aria-label="基本信息详情"
+                                >
+                                    <div class="batch-detail-header">
+                                        <div style="flex: 1;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <span style="color: #606266;">单位:</span>
+                                                <span style="font-weight: 500;">{{ item.unit }}</span>
+                                                <span class="batch-expand-icon">▼</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="batch-detail-content" :class="{ expanded: isBasicInfoExpanded(item.id) }">
+                                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                                            <div style="display: flex; justify-content: space-between;">
+                                                <span style="color: #606266;">出库时间:</span>
+                                                <span style="font-weight: 500;">{{ formatDateTime(item.created_at) }}</span>
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between;">
+                                                <span style="color: #606266;">装货车辆:</span>
+                                                <span style="font-weight: 500;">{{ item.vehicle_no }}</span>
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between;">
+                                                <span style="color: #606266;">备注:</span>
+                                                <span style="font-weight: 500;">{{ item.remark }}</span>
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between;">
+                                                <span style="color: #606266;">总价:</span>
+                                                <span style="font-weight: 500;">
+                                                    {{ item.total_amount !== undefined && item.total_amount !== null && item.total_amount !== '' 
+                                                        ? `¥${Math.ceil(Number(item.total_amount)).toLocaleString()}`
+                                                        : '未记录' }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- 批次明细 -->
                             <div style="display: flex; flex-direction: column; gap: 8px;">
                                 <div style="font-size: 12px; color: #909399; font-weight: 500;">批次明细</div>
-                                <div v-for="batch in item.batchItems" :key="batch.id" style="border-bottom: 1px dashed #272833; padding: 4px 0; position: relative;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div 
+                                    v-for="batch in item.batchItems" 
+                                    :key="batch.id" 
+                                    class="batch-detail-card"
+                                    :class="{ expanded: isBatchExpanded(batch.id) }"
+                                    @click="toggleBatchDetail(batch.id, $event)"
+                                    @keydown.enter="toggleBatchDetail(batch.id, $event)"
+                                    @keydown.space.prevent="toggleBatchDetail(batch.id, $event)"
+                                    tabindex="0"
+                                    role="button"
+                                    :aria-expanded="isBatchExpanded(batch.id)"
+                                    aria-label="批号记录详情"
+                                >
+                                    <div class="batch-detail-header">
                                         <div style="flex: 1;">
-                                            <div style="display: flex; justify-content: space-between;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
                                                 <span style="color: #af1414;">批号:</span>
                                                 <span style="font-weight: 500;">{{ batch.batch_no }}</span>
-                                            </div>
-                                            <div style="display: flex; justify-content: space-between;">
-                                                <span style="color: #606266;">规格:</span>
-                                                <span style="font-weight: 500;">{{ batch.specification || '未记录' }}</span>
-                                            </div>
-                                            <div style="display: flex; justify-content: space-between;">
-                                                <span style="color: #606266;">材质:</span>
-                                                <span style="font-weight: 500;">{{ batch.material || '未记录' }}</span>
-                                            </div>
-                                            <div style="display: flex; justify-content: space-between;">
-                                                <span style="color: #606266;">重量:</span>
-                                                <span style="font-weight: 500;">
-                                                    {{ batch.out_weight !== undefined && batch.out_weight !== null && batch.out_weight !== '' 
-                                                        ? `${Number(batch.out_weight).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} 吨`
-                                                        : (batch.change_weight !== undefined && batch.change_weight !== null ? `${Math.abs(Number(batch.change_weight)).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} 吨` : '未记录') }}
-                                                </span>
-                                            </div>
-                                            <div style="display: flex; justify-content: space-between;">
-                                                <span style="color: #606266;">单价:</span>
-                                                <span style="font-weight: 500;">
-                                                    {{ batch.unit_price !== undefined && batch.unit_price !== null && batch.unit_price !== '' 
-                                                        ? `¥${Number(batch.unit_price).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/吨`
-                                                        : '未记录' }}
-                                                </span>
-                                            </div>
-                                            <div style="display: flex; justify-content: space-between;">
-                                                <span style="color: #606266;">总价:</span>
-                                                <span style="font-weight: 500;">
-                                                    {{ batch.total_amount !== undefined && batch.total_amount !== null && batch.total_amount !== '' 
-                                                        ? `¥${Number(batch.total_amount).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
-                                                        : '未记录' }}
-                                                </span>
+                                                <span class="batch-expand-icon">▼</span>
                                             </div>
                                         </div>
-                                    <div style="margin-left: 10px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
-                                        <el-button 
-                                            type="danger" 
-                                            size="small" 
-                                            @click="deleteBatchHistory(item, batch)"
-                                            title="删除该批号记录"
-                                        >
-                                            删除
-                                        </el-button>
-                                        <el-button 
-                                            type="success" 
-                                            size="small" 
-                                            @click="editOutboundRecord(item)"
-                                            title="编辑出库记录"
-                                        >
-                                            编辑
-                                        </el-button>
                                     </div>
+                                    <div class="batch-detail-content" :class="{ expanded: isBatchExpanded(batch.id) }">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <div style="flex: 1 1 0%;">
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <span style="color: #606266;">规格:</span>
+                                                    <span style="font-weight: 500;">{{ batch.specification || '未记录' }}</span>
+                                                </div>
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <span style="color: #606266;">材质:</span>
+                                                    <span style="font-weight: 500;">{{ batch.material || '未记录' }}</span>
+                                                </div>
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <span style="color: #606266;">重量:</span>
+                                                    <span style="font-weight: 500;">
+                                                        {{ batch.out_weight !== undefined && batch.out_weight !== null && batch.out_weight !== '' 
+                                                            ? `${Number(batch.out_weight).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} 吨`
+                                                            : (batch.change_weight !== undefined && batch.change_weight !== null ? `${Math.abs(Number(batch.change_weight)).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} 吨` : '未记录') }}
+                                                    </span>
+                                                </div>
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <span style="color: #606266;">单价:</span>
+                                                    <span style="font-weight: 500;">
+                                                        {{ batch.unit_price !== undefined && batch.unit_price !== null && batch.unit_price !== '' 
+                                                            ? `¥${Number(batch.unit_price).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/吨`
+                                                            : '未记录' }}
+                                                    </span>
+                                                </div>
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <span style="color: #606266;">总价:</span>
+                                                    <span style="font-weight: 500;">
+                                                        {{ batch.total_amount !== undefined && batch.total_amount !== null && batch.total_amount !== '' 
+                                                            ? `¥${Math.ceil(Number(batch.total_amount)).toLocaleString()}`
+                                                            : '未记录' }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div style="margin-left: 10px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                                                <el-button 
+                                                    type="danger" 
+                                                    size="small" 
+                                                    @click.stop="deleteBatchHistory(item, batch)"
+                                                    title="删除该批号记录"
+                                                >
+                                                    删除
+                                                </el-button>
+                                                <el-button 
+                                                    type="success" 
+                                                    size="small" 
+                                                    @click.stop="editOutboundRecord(item)"
+                                                    title="编辑出库记录"
+                                                >
+                                                    编辑
+                                                </el-button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -4826,7 +5141,7 @@
     </div>
 
     <script>
-        const { createApp, ref, reactive, onMounted, onUnmounted, computed, watch } = Vue;
+        const { createApp, ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } = Vue;
         const { ElMessage, ElMessageBox, ElIcon } = ElementPlus;
         // 使用简单的搜索图标替代方式
 
@@ -5001,6 +5316,12 @@
                 // 当前激活的标签页
                 const activeTab = ref('inbound');
                 
+                // 批号记录展开状态
+                const expandedBatches = ref(new Set());
+                
+                // 基本信息展开状态
+                const expandedBasicInfo = ref(new Set());
+                
                 // 添加缓存状态
                 const cacheStatus = ref('empty');
                 const cachePanelOpen = ref(false);
@@ -5043,6 +5364,30 @@
                 
                 const closeCachePanel = () => {
                     cachePanelOpen.value = false;
+                };
+                
+                const toggleBatchDetail = (batchId, event) => {
+                    if (expandedBatches.value.has(batchId)) {
+                        expandedBatches.value.delete(batchId);
+                    } else {
+                        expandedBatches.value.add(batchId);
+                    }
+                };
+                
+                const isBatchExpanded = (batchId) => {
+                    return expandedBatches.value.has(batchId);
+                };
+                
+                const toggleBasicInfo = (itemId, event) => {
+                    if (expandedBasicInfo.value.has(itemId)) {
+                        expandedBasicInfo.value.delete(itemId);
+                    } else {
+                        expandedBasicInfo.value.add(itemId);
+                    }
+                };
+                
+                const isBasicInfoExpanded = (itemId) => {
+                    return expandedBasicInfo.value.has(itemId);
                 };
                 
                 const handleDocumentClick = (event) => {
@@ -5590,7 +5935,7 @@
                     
                     return {
                         totalWeight: totalWeight.toFixed(3),
-                        totalAmount: totalAmount.toFixed(2),
+                        totalAmount: Math.ceil(totalAmount).toLocaleString(),
                         recordCount: filteredRecords.length
                     };
                 });
@@ -5736,6 +6081,10 @@
                 const wsSocket = ref(null);
                 const printPanelOpen = ref(false);
                 const showPrintOptions = ref(false);
+                
+                // 图片预览相关
+                const showImagePreview = ref(false);
+                const previewImageData = ref('');
                 
                 // WebSocket服务器URL设置对话框相关
                 const showWsUrlDialog = ref(false);
@@ -5897,8 +6246,8 @@
                 
                 const wsStatusText = computed(() => {
                     const texts = {
-                        'connected': '已连接打印服务器',
-                        'disconnected': '打印服务器未连接',
+                        'connected': '打印机',
+                        'disconnected': '打印机',
                         'connecting': '正在连接...',
                         'error': '连接错误'
                     };
@@ -5922,17 +6271,18 @@
                 const totalAmount = computed(() => {
                     const amount = outboundForm.batchItems.reduce((sum, item) => {
                         if (!item) return sum;
-                        return sum + ((item.unit_price || 0) * (item.out_weight || 0));
+                        return sum + ((parseFloat(item.unit_price) || 0) * (parseFloat(item.out_weight) || 0));
                     }, 0);
-                    // 保留两位小数
-                    return parseFloat(amount.toFixed(2));
+                    return amount;
                 });
 
-                // 有在库库存的单位列表
-                const inStockUnits = computed(() => {
+                // 根据库存状态筛选的单位列表
+                const availableUnitsByStatus = computed(() => {
                     const unitsWithStock = new Set();
+                    const targetStatus = inventoryStatus.value === 'outStock' ? 2 : 1;
+                    
                     inventoryData.value.forEach(item => {
-                        if (item.status === 1) {
+                        if (item.status === targetStatus) {
                             unitsWithStock.add(item.unit);
                         }
                     });
@@ -5966,6 +6316,8 @@
                     // 根据库存状态筛选
                     if (inventoryStatus.value === 'inStock') {
                         filtered = filtered.filter(item => item.status === 1);
+                    } else if (inventoryStatus.value === 'outStock') {
+                        filtered = filtered.filter(item => item.status === 2);
                     }
                     
                     if (queryForm.batchNo) {
@@ -6081,25 +6433,87 @@
                 
                 // 跳转到出库记录
                 const scrollToOutboundRecord = (batchNo) => {
+                    console.log('开始跳转到出库记录，批号:', batchNo);
+                    
                     // 切换到出库记录页面
                     activeTab.value = 'history';
                     
-                    // 等待DOM更新后滚动到对应记录
-                    setTimeout(() => {
-                        const element = document.querySelector(`[data-batch-no="${batchNo}"]`);
-                        if (element) {
-                            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            // 添加高亮效果
-                            element.style.border = '2px solid #409eff';
-                            element.style.boxShadow = '0 0 10px rgba(64, 158, 255, 0.5)';
-                            setTimeout(() => {
-                                element.style.border = '';
-                                element.style.boxShadow = '';
-                            }, 3000);
-                        } else {
-                            ElMessage.info(`未找到批号 ${batchNo} 的出库记录`);
-                        }
-                    }, 100);
+                    // 保存当前的日期范围和时间筛选
+                    const originalDateRange = queryForm.dateRange ? [...queryForm.dateRange] : null;
+                    const originalTimeFilter = selectedTimeFilter.value;
+                    console.log('原始日期范围:', originalDateRange);
+                    console.log('原始时间筛选:', originalTimeFilter);
+                    
+                    // 清空日期范围和时间筛选，显示所有记录
+                    queryForm.dateRange = [];
+                    selectedTimeFilter.value = null;
+                    console.log('已清空日期范围和时间筛选');
+                    
+                    // 使用 nextTick 确保 DOM 更新完成
+                    nextTick(() => {
+                        console.log('DOM 已更新，开始查找元素');
+                        
+                        // 等待一小段时间确保渲染完成
+                        setTimeout(() => {
+                            // 尝试多种查找方式
+                            let element = null;
+                            
+                            // 方式1: 通过 batch_no 查找
+                            const selectorByBatchNo = `[data-batch-no="${batchNo}"]`;
+                            console.log('查找选择器 (batch_no):', selectorByBatchNo);
+                            element = document.querySelector(selectorByBatchNo);
+                            console.log('通过 batch_no 找到的元素:', element);
+                            
+                            // 方式2: 如果没找到，尝试通过 ref_no 查找
+                            if (!element) {
+                                // 从 outboundHistoryData 中查找对应的 ref_no
+                                const outboundRecord = outboundHistoryData.value.find(
+                                    item => item.batch_no === batchNo && item.change_type === 2
+                                );
+                                console.log('找到的出库记录:', outboundRecord);
+                                
+                                if (outboundRecord && outboundRecord.ref_no) {
+                                    const selectorByRefNo = `[data-batch-no="${outboundRecord.ref_no}"]`;
+                                    console.log('查找选择器 (ref_no):', selectorByRefNo);
+                                    element = document.querySelector(selectorByRefNo);
+                                    console.log('通过 ref_no 找到的元素:', element);
+                                }
+                            }
+                            
+                            // 方式3: 如果还是没找到，尝试查找所有包含该批号的元素
+                            if (!element) {
+                                const allElements = document.querySelectorAll('[data-batch-no]');
+                                console.log('所有批号元素数量:', allElements.length);
+                                allElements.forEach(el => {
+                                    const batchNoAttr = el.getAttribute('data-batch-no');
+                                    if (batchNoAttr === batchNo || batchNoAttr === String(batchNo)) {
+                                        element = el;
+                                        console.log('通过遍历找到的元素:', el);
+                                    }
+                                });
+                            }
+                            
+                            if (element) {
+                                console.log('滚动到元素位置');
+                                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                // 添加高亮效果
+                                element.style.border = '2px solid #409eff';
+                                element.style.boxShadow = '0 0 10px rgba(64, 158, 255, 0.5)';
+                                setTimeout(() => {
+                                    element.style.border = '';
+                                    element.style.boxShadow = '';
+                                }, 3000);
+                            } else {
+                                console.error('未找到元素，当前页面上的所有 data-batch-no 属性:');
+                                const allElements = document.querySelectorAll('[data-batch-no]');
+                                console.log('所有批号元素:', allElements);
+                                allElements.forEach(el => {
+                                    console.log('  -', el.getAttribute('data-batch-no'));
+                                });
+                                ElMessage.warning(`未找到批号 ${batchNo} 的出库记录，已显示所有历史记录`);
+                            }
+                        }, 500);
+                    });
                 };
                 
                 // 打开jiagong.html查看完整开平明细
@@ -7951,7 +8365,7 @@
                             <p><strong>变更后重量：</strong>${parseFloat(parseFloat(row.after_weight).toFixed(3))}吨</p>
                             ${row.transport_fee ? `<p><strong>运费：</strong>¥${row.transport_fee.toLocaleString()}</p>` : ''}
                             ${row.advance_payment ? `<p><strong>垫付：</strong>¥${row.advance_payment.toLocaleString()}</p>` : ''}
-                            ${row.total_amount ? `<p><strong>总金额：</strong>¥${row.total_amount.toLocaleString()}</p>` : ''}
+                            ${row.total_amount ? `<p><strong>总金额：</strong>¥${Math.ceil(row.total_amount).toLocaleString()}</p>` : ''}
                             <p><strong>关联单号：</strong>${row.ref_no}</p>
                             <p><strong>操作时间：</strong>${formatDateTime(row.created_at)}</p>
                             <p><strong>备注：</strong>${row.remark || '无'}</p>
@@ -8152,8 +8566,8 @@
                             throw new Error('单价必须是大于等于0的数字');
                         }
                         
-                        // 计算总金额 = 单价 * 出库重量
-                        const totalAmount = unitPriceInput * formData.change_weight;
+                        // 计算总金额 = 单价 * 出库重量，向上进位到整数元
+                        const totalAmount = Math.ceil(unitPriceInput * formData.change_weight);
                         
                         // 准备更新数据
                         // 更新outbound表（注意：outbound表中没有unit字段）
@@ -8817,7 +9231,7 @@
                                 before_weight: inventoryItem.weight,
                                 after_weight: updatedItem.weight,
                                 unit_price: batchItem.unit_price || 0,
-                                total_amount: Math.floor((parseFloat(batchItem.unit_price || 0) || 0) * preciseOutWeight * 10) / 10, // 总价保留1位小数
+                                total_amount: Math.ceil((parseFloat(batchItem.unit_price || 0) || 0) * preciseOutWeight), // 总价直接进位到整数元
                                 ref_no: outboundForm.out_no,
                                 vehicle_no: outboundForm.vehicle_no || '', // 修复：添加出库车号字段
                                 remark: outboundForm.remark || '出库操作',
@@ -9362,7 +9776,7 @@
                             before_weight: inventoryItem ? inventoryItem.weight : 0,
                             after_weight: parseFloat(history.before_weight.toFixed(3)), // 修改：恢复后的重量就是出库前的重量
                             unit_price: history.unit_price || 0,
-                            total_amount: Math.floor((parseFloat(history.unit_price || 0) || 0) * Math.abs(history.change_weight) * 10) / 10, // 总价保留1位小数
+                            total_amount: Math.ceil((parseFloat(history.unit_price || 0) || 0) * Math.abs(history.change_weight)), // 总价直接进位到整数元
                             ref_no: 'REVOKE_' + history.ref_no,
                             remark: `撤销出库记录: ${history.remark || '无备注'}，原单号：${history.ref_no}`
                         };
@@ -9811,16 +10225,16 @@
                             // 计算单价和总价，保留一位小数
                             const unitPrice = parseFloat(parseFloat(item.unit_price || 0).toFixed(1)) || 0;
                             const outWeight = parseFloat(item.out_weight) || 0;
-                            const totalAmount = parseFloat((unitPrice * outWeight).toFixed(1));
+                            const totalAmount = Math.ceil(unitPrice * outWeight);
                             
                             return {
                                 batchNo: item.batch_no || '',
                                 material: item.material || '',
                                 specification: item.specification || '',
                                 weight: outWeight + '吨',
-                                total: item.total || '1', // 默认1件
+                                total: item.total || '1',
                                 unitPrice: unitPrice > 0 ? `¥${unitPrice.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/吨` : '',
-                                totalAmount: totalAmount > 0 ? `¥${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '',
+                                totalAmount: totalAmount > 0 ? `¥${totalAmount.toLocaleString()}` : '',
                                 advancePayment: item.advance_payment ? `¥${item.advance_payment.toLocaleString()}` : '无',
                                 transportFee: item.transport_fee ? `¥${item.transport_fee.toLocaleString()}` : '无'
                             };
@@ -9828,10 +10242,10 @@
                         summary: {
                             totalBatches: outboundForm.batchItems.length,
                             totalWeight: parseFloat(totalWeight.toFixed(3)) + '吨',
-                            totalAmount: `¥${parseFloat(outboundForm.batchItems.reduce((sum, item) => {
+                            totalAmount: `¥${Math.ceil(outboundForm.batchItems.reduce((sum, item) => {
                                 if (!item) return sum;
                                 return sum + ((parseFloat(item.unit_price) || 0) * (parseFloat(item.out_weight) || 0));
-                            }, 0).toFixed(1))}`,
+                            }, 0)).toLocaleString()}`,
                             unitPrice: '按批次设置'
                         },
                         remark: outboundForm.remark || '无',
@@ -10024,11 +10438,11 @@
                             
                             // 计算单价和总价，保留一位小数
                             const unitPrice = parseFloat(parseFloat(data.unit_price || 0).toFixed(1)) || 0;
-                            let totalAmount = parseFloat((unitPrice * totalWeight).toFixed(1));
+                            let totalAmount = Math.ceil(unitPrice * totalWeight);
                             
                             // 对于补打票，优先使用记录中的total_amount字段
                             if (isReprint && data.total_amount !== undefined && data.total_amount !== null) {
-                                totalAmount = parseFloat(data.total_amount) || 0;
+                                totalAmount = Math.ceil(parseFloat(data.total_amount) || 0);
                             }
                             
                             batchItems = [{
@@ -10068,11 +10482,11 @@
                                 // 单价来源：表单值 -> 批次记录里的单价(unit_price) -> 0
                                 const unitPrice = parseFloat(item.unit_price ?? item.price ?? item.unitPrice ?? 0) || 0;
                                 const outWeight = parseFloat(item.out_weight || item.change_weight) || 0;
-                                const totalAmount = unitPrice * outWeight;
+                                const totalAmount = Math.ceil(unitPrice * outWeight);
                                                             
                                 // 对于补打票，优先使用记录中的total_amount字段
                                 const finalTotalAmount = isReprint && item.total_amount !== undefined && item.total_amount !== null 
-                                    ? parseFloat(item.total_amount) || 0 
+                                    ? Math.ceil(parseFloat(item.total_amount) || 0) 
                                     : totalAmount;
                                 
                                 return {
@@ -10080,9 +10494,9 @@
                                     material: item.material || 'N/A',
                                     specification: item.specification || 'N/A',
                                     weight: parseFloat(Math.abs(parseFloat(item.out_weight || item.change_weight) || 0).toFixed(3)) + '吨',
-                                    total: item.total || '1', // 默认1件
+                                    total: item.total || '1',
                                     unitPrice: unitPrice > 0 ? `¥${unitPrice.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/吨` : '',
-                                    totalAmount: finalTotalAmount > 0 ? `¥${finalTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '',
+                                    totalAmount: finalTotalAmount > 0 ? `¥${finalTotalAmount.toLocaleString()}` : '',
                                     advancePayment: item.advance_payment ? `¥${item.advance_payment.toLocaleString()}` : '无',
                                     transportFee: item.transport_fee ? `¥${item.transport_fee.toLocaleString()}` : '无'
                                 };
@@ -10114,13 +10528,13 @@
                         // 计算总金额 - 对于补打票，优先使用记录中的total_amount字段；否则按批次金额求和
                         let calculatedTotalAmount = 0;
                         if (isReprint && data.total_amount !== undefined && data.total_amount !== null) {
-                            calculatedTotalAmount = parseFloat(data.total_amount) || 0;
+                            calculatedTotalAmount = Math.ceil(parseFloat(data.total_amount) || 0);
                         } else {
-                            calculatedTotalAmount = batchItems.reduce((sum, item) => {
+                            calculatedTotalAmount = Math.ceil(batchItems.reduce((sum, item) => {
                                 const amountStr = item.totalAmount || '0';
                                 const amount = parseFloat(String(amountStr).replace(/[^0-9.-]+/g, "")) || 0;
                                 return sum + amount;
-                            }, 0);
+                            }, 0));
                         }
                                                     
                         return {
@@ -10136,7 +10550,7 @@
                             summary: {
                                 totalBatches: batchItems.length,
                                 totalWeight: parseFloat(Math.abs(totalWeight).toFixed(3)) + '吨',
-                                totalAmount: `¥${calculatedTotalAmount.toFixed(2)}`,
+                                totalAmount: `¥${calculatedTotalAmount.toLocaleString()}`,
                                 unitPrice: '按批次设置'
                             },
                             remark: data.remark || '无',
@@ -10563,10 +10977,7 @@
                         const amt = parseFloat(String(item.totalAmount || '0').replace(/[^\d.-]/g, '')) || 0;
                         return sum + amt;
                     }, 0);
-                    const totalAmountDisplay = numericTotal.toLocaleString('zh-CN', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    });
+                    const totalAmountDisplay = Math.ceil(numericTotal).toLocaleString('zh-CN');
                     
                     // 计算总重量
                     const totalWeight = (data.batchItems || []).reduce((sum, item) => {
@@ -10615,7 +11026,7 @@
 
 
                 // 生成二维码打印（移动端）
-                // 保存为PDF
+                // 保存为PDF - 改为显示预览
                 const handleSavePDF = async () => {
                     const printData = window.currentPrintData;
                     if (!printData) {
@@ -10624,10 +11035,12 @@
                     }
                     
                     try {
+                        ElMessage.info('正在生成图片预览...');
+                        
                         // 生成打印内容
                         const printHTML = await generatePrintHTML(printData);
                         
-                        // 创建临时iframe来生成PDF
+                        // 创建临时iframe来生成图片
                         const iframe = document.createElement('iframe');
                         iframe.style.position = 'absolute';
                         iframe.style.left = '-9999px';
@@ -10682,20 +11095,48 @@
                         // 将canvas转换为图片
                         const imgData = canvas.toDataURL('image/png', 1.0);
                         
-                        // 创建下载链接
-                        const link = document.createElement('a');
-                        link.href = imgData;
-                        link.download = `出库单_${printData.outNo}.png`;
-                        link.click();
+                        // 保存图片数据到预览变量
+                        previewImageData.value = imgData;
                         
-                        // 清理
+                        // 清理iframe
                         if (iframe.parentNode) {
                             document.body.removeChild(iframe);
                         }
                         
-                        ElMessage.success('已保存为PNG图片');
+                        // 显示预览模态框
+                        showImagePreview.value = true;
+                        
+                        ElMessage.success('图片预览已生成');
                     } catch (error) {
-                        console.error('保存PDF失败:', error);
+                        console.error('生成图片预览失败:', error);
+                        ElMessage.error('生成预览失败: ' + error.message);
+                    }
+                };
+                
+                // 关闭图片预览
+                const closeImagePreview = () => {
+                    showImagePreview.value = false;
+                    previewImageData.value = '';
+                };
+                
+                // 保存预览图片
+                const savePreviewImage = () => {
+                    const printData = window.currentPrintData;
+                    if (!previewImageData.value) {
+                        ElMessage.warning('图片数据不存在');
+                        return;
+                    }
+                    
+                    try {
+                        // 创建下载链接
+                        const link = document.createElement('a');
+                        link.href = previewImageData.value;
+                        link.download = `出库单_${printData ? printData.outNo : Date.now()}.png`;
+                        link.click();
+                        
+                        ElMessage.success('图片已保存');
+                    } catch (error) {
+                        console.error('保存图片失败:', error);
                         ElMessage.error('保存失败: ' + error.message);
                     }
                 };
@@ -11055,6 +11496,8 @@
                     window.handleDirectPrint = handleDirectPrint;
                     window.handleSavePDF = handleSavePDF;
                     window.handleRemotePrint = handleRemotePrint;
+                    window.closeImagePreview = closeImagePreview;
+                    window.savePreviewImage = savePreviewImage;
                 });
                 
                 // 监听库存状态变化，更新可用单位列表
@@ -11072,7 +11515,7 @@
                     refreshLoading,
                     availableUnits,
                     availableMaterials,
-                    inStockUnits,
+                    availableUnitsByStatus,
                     queryForm,
                     inboundForm,
                     outboundForm,
@@ -11153,6 +11596,12 @@
                     
                     // 图片模态框相关
                     showImageModal,
+                    
+                    // 图片预览相关
+                    showImagePreview,
+                    previewImageData,
+                    closeImagePreview,
+                    savePreviewImage,
                     
                     // 移除不再需要的Search组件
                     
@@ -11237,6 +11686,16 @@
                     handleImportFileChange,
                     handleImportConfirm,
                     handleImportCancel,
+                    
+                    // 批号记录展开/收起
+                    expandedBatches,
+                    toggleBatchDetail,
+                    isBatchExpanded,
+                    
+                    // 基本信息展开/收起
+                    expandedBasicInfo,
+                    toggleBasicInfo,
+                    isBasicInfoExpanded,
                     
                     // 出库提交状态
                     isSubmittingOutbound

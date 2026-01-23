@@ -6,10 +6,10 @@
     <title>财务管理系统 - 热卷贸易</title>
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.13.0/dist/index.full.min.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <!-- 图表库 - 使用更稳定的CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -4074,11 +4074,27 @@
                         
                         this.addSyncLog(`其中 ${pendingRecords.length} 条未同步`);
                         
+                        // 按ref_no分组，累加同一出库单号下所有批号的总价
+                        const groupedRecords = {};
+                        pendingRecords.forEach(record => {
+                            const key = record.ref_no;
+                            if (!groupedRecords[key]) {
+                                groupedRecords[key] = {
+                                    ...record,
+                                    batchItems: [],
+                                    total_amount: 0
+                                };
+                            }
+                            groupedRecords[key].batchItems.push(record);
+                            groupedRecords[key].total_amount += parseFloat(record.total_amount || 0);
+                        });
+                        
                         // 同步处理
                         let successCount = 0;
                         let errorCount = 0;
                         
-                        for (const record of pendingRecords) {
+                        for (const refNo in groupedRecords) {
+                            const record = groupedRecords[refNo];
                             try {
                                 // 根据出库类型确定交易类型和类别
                                 let transactionType, transactionCategory;
@@ -4119,6 +4135,16 @@
                                 const sourceDateTime = record.created_at || record.out_date || new Date().toISOString();
                                 const sourceDateObj = new Date(sourceDateTime);
                                 
+                                // 构建批号列表描述
+                                const batchList = record.batchItems.map(b => 
+                                    `${b.batch_no}${b.specification ? '(' + b.specification + ')' : ''}`
+                                ).join(', ');
+                                
+                                // 计算总重量
+                                const totalWeight = record.batchItems.reduce((sum, b) => 
+                                    sum + parseFloat(b.out_weight || b.change_weight || 0), 0
+                                );
+                                
                                 const ledgerRecord = {
                                     ref_no: record.ref_no,
                                     transaction_date: sourceDateObj.toLocaleDateString('zh-CN', {
@@ -4129,12 +4155,12 @@
                                     transaction_time: sourceDateTime,
                                     transaction_type: transactionType,
                                     transaction_category: transactionCategory,
-                                    description: `出库单号: ${record.ref_no} | 批号: ${record.batch_no} | ${record.specification ? '规格: ' + record.specification + ' | ' : ''}${record.out_weight ? '重量: ' + record.out_weight + 'kg | ' : ''}${record.remark || '出库操作'}`,
+                                    description: `出库单号: ${record.ref_no} | 批号: ${batchList} | ${record.specification ? '规格: ' + record.specification + ' | ' : ''}${totalWeight ? '重量: ' + totalWeight.toFixed(3) + '吨 | ' : ''}${record.remark || '出库操作'}`,
                                     amount: record.unit_price || 0,
                                     total_amount: record.total_amount || 0,
                                     customer_supplier: inventoryData?.unit || record.unit || '未知',
                                     batch_no: record.batch_no,
-                                    quantity: record.out_weight,
+                                    quantity: totalWeight,
                                     unit_price: record.unit_price,
                                     unit: record.unit,
                                     debit_account: '1002', // 银行存款
