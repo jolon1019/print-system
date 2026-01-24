@@ -3860,8 +3860,8 @@
             </div>
         </div>
 
-        <div class="image-modal" :class="{ active: showImageModal }">
-            <div class="image-modal-content">
+        <div class="image-modal" :class="{ active: showImageModal }" @click="showImageModal = false">
+            <div class="image-modal-content" @click.stop>
                 <div class="image-modal-header">
                     <h3>开票费</h3>
                     <button @click="showImageModal = false" class="close-btn">&times;</button>
