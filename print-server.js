@@ -496,9 +496,11 @@ if (!fs.existsSync(logDir)) {
 
 // 日志配置
 const LOG_CONFIG = {
-  maxSize: 100 * 1024 * 1024, // 100MB
-  maxFiles: 10 // 最多保留10个历史日志文件
+  maxSize: 100 * 1024 * 1024,
+  maxFiles: 10
 };
+
+let logWriteQueue = Promise.resolve();
 
 // 日志函数
 function log(message, type = 'info') {
@@ -506,33 +508,45 @@ function log(message, type = 'info') {
   const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
   console.log(logMessage);
   
-  const dateStr = new Date().toISOString().split('T')[0];
-  let logFile = path.join(logDir, `${dateStr}.log`);
-  
-  // 检查日志文件大小，如果超过限制则轮转
-  if (fs.existsSync(logFile)) {
-    const stats = fs.statSync(logFile);
-    if (stats.size >= LOG_CONFIG.maxSize) {
-      // 轮转日志文件
-      let counter = 1;
-      let rotatedFile;
+  logWriteQueue = logWriteQueue.then(() => {
+    return new Promise((resolve, reject) => {
+      const dateStr = new Date().toISOString().split('T')[0];
+      let logFile = path.join(logDir, `${dateStr}.log`);
       
-      // 找到可用的轮转文件名
-      do {
-        rotatedFile = path.join(logDir, `${dateStr}.${counter}.log`);
-        counter++;
-      } while (fs.existsSync(rotatedFile) && counter <= LOG_CONFIG.maxFiles);
+      if (fs.existsSync(logFile)) {
+        try {
+          const stats = fs.statSync(logFile);
+          if (stats.size >= LOG_CONFIG.maxSize) {
+            let counter = 1;
+            let rotatedFile;
+            
+            do {
+              rotatedFile = path.join(logDir, `${dateStr}.${counter}.log`);
+              counter++;
+            } while (fs.existsSync(rotatedFile) && counter <= LOG_CONFIG.maxFiles);
+            
+            try {
+              fs.renameSync(logFile, rotatedFile);
+              cleanupOldLogs(dateStr);
+            } catch (renameError) {
+              console.error('日志文件轮转失败:', renameError.message);
+            }
+          }
+        } catch (statError) {
+          console.error('获取日志文件状态失败:', statError.message);
+        }
+      }
       
-      // 重命名当前日志文件
-      fs.renameSync(logFile, rotatedFile);
-      
-      // 清理过期的轮转日志
-      cleanupOldLogs(dateStr);
-    }
-  }
-  
-  // 写入日志文件
-  fs.appendFileSync(logFile, logMessage + '\n', 'utf8');
+      fs.appendFile(logFile, logMessage + '\n', 'utf8', (err) => {
+        if (err) {
+          console.error('写入日志失败:', err.message);
+        }
+        resolve();
+      });
+    });
+  }).catch(err => {
+    console.error('日志队列错误:', err.message);
+  });
 }
 
 // 清理过期的轮转日志
@@ -613,7 +627,7 @@ wss.on('connection', (ws, req) => {
       
       resetMissedPings();
       
-      handleMessage(ws, data, clientId);
+      handleMessage(ws, data, clientId, resetMissedPings);
     } catch (error) {
       log(`消息处理失败: ${error.message}`, 'error');
       log(`错误堆栈: ${error.stack}`, 'error');
@@ -675,10 +689,9 @@ wss.on('connection', (ws, req) => {
 });
 
 // 处理消息
-function handleMessage(ws, data, clientId) {
+function handleMessage(ws, data, clientId, resetMissedPings) {
   try {
     log(`收到客户端 ${clientId} 的消息，类型: ${data.type}`, 'debug');
-    // 先将数据转换为JSON字符串，确保可以被序列化
     const dataStr = JSON.stringify(data);
     log(`消息内容: ${dataStr}`, 'debug');
     
@@ -709,8 +722,21 @@ function handleMessage(ws, data, clientId) {
       }
       break;
       
+    case 'pong':
+      log(`收到客户端pong响应: ${clientId}`, 'debug');
+      break;
+      
     case 'server-pong':
       log(`收到客户端心跳响应: ${clientId}`, 'debug');
+      resetMissedPings();
+      break;
+      
+    case 'welcome':
+      log(`收到客户端欢迎响应: ${clientId}`, 'debug');
+      break;
+      
+    case 'error':
+      log(`收到客户端错误: ${data.message}`, 'error');
       break;
       
     case 'job-update':

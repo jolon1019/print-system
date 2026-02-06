@@ -456,6 +456,17 @@ body {
   line-height: 1.6;
 }
 
+.recent-logs {
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 15px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .log-entry {
   display: flex;
   gap: 15px;

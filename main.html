@@ -8483,6 +8483,7 @@
                             advance_payment: item.advance_payment || 0,
                             storage_location: item.storage_location || '',
                             in_date: item.in_date,
+                            status: item.status || 1,
                             remark: item.remark || ''
                         };
                         
@@ -8496,6 +8497,13 @@
                                 <div style="margin-bottom: 12px;">
                                     <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">批号：</label>
                                     <input id="edit_batch_no" value="${formData.batch_no}" style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px;" />
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">库存状态：</label>
+                                    <select id="edit_status" style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px;">
+                                        <option value="1" ${formData.status === 1 ? 'selected' : ''}>在库</option>
+                                        <option value="2" ${formData.status === 2 ? 'selected' : ''}>已出库</option>
+                                    </select>
                                 </div>
                                 <div style="margin-bottom: 12px;">
                                     <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">规格：</label>
@@ -8554,6 +8562,7 @@
                         const updatedData = {
                             unit: document.getElementById('edit_unit').value,
                             batch_no: document.getElementById('edit_batch_no').value,
+                            status: parseInt(document.getElementById('edit_status').value),
                             specification: document.getElementById('edit_specification').value,
                             material: document.getElementById('edit_material').value,
                             weight: weight,
@@ -8589,7 +8598,7 @@
                     }
                 };
                 
-                // 编辑出库记录 - 支持单价、装货车辆和备注字段的修改
+                // 编辑出库记录 - 支持出库类型、单价、装货车辆和备注字段的修改
                 const editOutboundRecord = async (item) => {
                     try {
                         // 计算单价 = 总金额 / 出库重量
@@ -8602,7 +8611,8 @@
                             unit_price: unitPrice,
                             total_amount: item.total_amount || 0,
                             remark: item.remark || '',
-                            unit: item.unit || ''
+                            unit: item.unit || '',
+                            out_type: item.out_type || item.outType || 1
                         };
                         
                         const htmlContent = `
@@ -8611,6 +8621,14 @@
                                     <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">批号：</label>
                                     <input id="edit_out_batch_no" value="${formData.batch_no}" disabled style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px; background: #f5f7fa; color: #909399;" />
                                     <div style="font-size: 12px; color: #909399; margin-top: 4px;">批号不可修改</div>
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">出库类型：</label>
+                                    <select id="edit_out_type" style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px;">
+                                        <option value="1" ${formData.out_type === 1 ? 'selected' : ''}>加工</option>
+                                        <option value="2" ${formData.out_type === 2 ? 'selected' : ''}>装卷</option>
+                                        <option value="3" ${formData.out_type === 3 ? 'selected' : ''}>销售</option>
+                                    </select>
                                 </div>
                                 <div style="margin-bottom: 12px;">
                                     <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">出库重量（吨）：</label>
@@ -8644,6 +8662,7 @@
                         });
                         
                         // 获取表单数据
+                        const outTypeInput = parseInt(document.getElementById('edit_out_type').value);
                         const unitInput = document.getElementById('edit_out_unit').value.trim();
                         const unitPriceInput = parseFloat(document.getElementById('edit_out_unit_price').value);
                         const vehicleNoInput = document.getElementById('edit_out_vehicle_no').value;
@@ -8663,6 +8682,7 @@
                         // 准备更新数据
                         // 更新outbound表（注意：outbound表中没有unit字段）
                         const outboundData = {
+                            out_type: outTypeInput,
                             unit_price: unitPriceInput, // 添加单价字段到数据库更新
                             total_amount: totalAmount,
                             remark: remarkInput,
@@ -8696,6 +8716,7 @@
                         // 3. 更新本地数据
                         // 包括outbound表的字段和单价信息（不再包括outbound_orders表）
                         const fullUpdatedData = {
+                            out_type: outTypeInput,
                             vehicle_no: vehicleNoInput,
                             unit_price: unitPriceInput, // 添加单价字段到本地数据
                             total_amount: totalAmount,

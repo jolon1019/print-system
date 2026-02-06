@@ -22,9 +22,11 @@ if (!fs.existsSync(logDir)) {
 
 // 日志配置
 const LOG_CONFIG = {
-  maxSize: 100 * 1024 * 1024, // 100MB
-  maxFiles: 10 // 最多保留10个历史日志文件
+  maxSize: 100 * 1024 * 1024,
+  maxFiles: 10
 };
+
+let logWriteQueue = Promise.resolve();
 
 // 日志函数
 function log(message, type = 'info') {
@@ -32,33 +34,45 @@ function log(message, type = 'info') {
   const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
   console.log(logMessage);
   
-  const dateStr = new Date().toISOString().split('T')[0];
-  let logFile = path.join(logDir, `print-client-${dateStr}.log`);
-  
-  // 检查日志文件大小，如果超过限制则轮转
-  if (fs.existsSync(logFile)) {
-    const stats = fs.statSync(logFile);
-    if (stats.size >= LOG_CONFIG.maxSize) {
-      // 轮转日志文件
-      let counter = 1;
-      let rotatedFile;
+  logWriteQueue = logWriteQueue.then(() => {
+    return new Promise((resolve, reject) => {
+      const dateStr = new Date().toISOString().split('T')[0];
+      let logFile = path.join(logDir, `print-client-${dateStr}.log`);
       
-      // 找到可用的轮转文件名
-      do {
-        rotatedFile = path.join(logDir, `print-client-${dateStr}.${counter}.log`);
-        counter++;
-      } while (fs.existsSync(rotatedFile) && counter <= LOG_CONFIG.maxFiles);
+      if (fs.existsSync(logFile)) {
+        try {
+          const stats = fs.statSync(logFile);
+          if (stats.size >= LOG_CONFIG.maxSize) {
+            let counter = 1;
+            let rotatedFile;
+            
+            do {
+              rotatedFile = path.join(logDir, `print-client-${dateStr}.${counter}.log`);
+              counter++;
+            } while (fs.existsSync(rotatedFile) && counter <= LOG_CONFIG.maxFiles);
+            
+            try {
+              fs.renameSync(logFile, rotatedFile);
+              cleanupOldLogs(dateStr);
+            } catch (renameError) {
+              console.error('日志文件轮转失败:', renameError.message);
+            }
+          }
+        } catch (statError) {
+          console.error('获取日志文件状态失败:', statError.message);
+        }
+      }
       
-      // 重命名当前日志文件
-      fs.renameSync(logFile, rotatedFile);
-      
-      // 清理过期的轮转日志
-      cleanupOldLogs(dateStr);
-    }
-  }
-  
-  // 写入日志文件
-  fs.appendFileSync(logFile, logMessage + '\n', 'utf8');
+      fs.appendFile(logFile, logMessage + '\n', 'utf8', (err) => {
+        if (err) {
+          console.error('写入日志失败:', err.message);
+        }
+        resolve();
+      });
+    });
+  }).catch(err => {
+    console.error('日志队列错误:', err.message);
+  });
 }
 
 // 清理过期的轮转日志
@@ -285,7 +299,6 @@ function handleMessage(data) {
   switch (data.type) {
     case 'register-success':
       log(`打印机注册成功，ID: ${data.printerId}`);
-      // 保存打印机ID用于后续操作
       globalPrinterId = data.printerId;
       break;
       
@@ -301,29 +314,27 @@ function handleMessage(data) {
       handlePrintJob(data);
       break;
       
-    case 'ping':
-      log(`收到服务器ping消息，回复pong`);
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
-      }
+    case 'pong':
+      log(`收到服务器pong响应`, 'debug');
       break;
       
     case 'server-ping':
+      log(`收到服务器心跳ping，回复server-pong`, 'debug');
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'server-pong', timestamp: Date.now() }));
       }
       break;
       
+    case 'welcome':
+      log(`收到服务器欢迎消息`, 'debug');
+      break;
+      
+    case 'error':
+      log(`收到服务器错误: ${data.message}`, 'error');
+      break;
+      
     default:
       log(`收到未知消息类型: ${data.type}`, 'warn');
-      // 对于未知消息类型，发送确认回复以避免服务器端错误
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-          type: 'ack', 
-          originalType: data.type,
-          message: '客户端已收到未知类型消息'
-        }));
-      }
   }
 }
 

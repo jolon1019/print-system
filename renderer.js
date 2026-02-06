@@ -197,6 +197,25 @@ function renderLogEntry(logEntry) {
   
   logsContent.appendChild(logDiv);
   logsContent.scrollTop = logsContent.scrollHeight;
+  
+  const recentLogs = document.getElementById('recent-logs');
+  if (recentLogs) {
+    const recentLogDiv = document.createElement('div');
+    recentLogDiv.className = 'log-entry';
+    recentLogDiv.innerHTML = `
+      <span class="log-time">${logEntry.time}</span>
+      <span class="log-service">${logEntry.service}</span>
+      <span class="log-message ${messageClass}">${logEntry.message.trim()}</span>
+    `;
+    recentLogs.appendChild(recentLogDiv);
+    
+    const logEntries = recentLogs.querySelectorAll('.log-entry');
+    if (logEntries.length > 10) {
+      recentLogs.removeChild(logEntries[0]);
+    }
+    
+    recentLogs.scrollTop = recentLogs.scrollHeight;
+  }
 }
 
 function filterLogs() {
@@ -217,6 +236,12 @@ function clearLogs() {
   logs.length = 0;
   const logsContent = document.getElementById('logs-content');
   logsContent.innerHTML = '';
+  
+  const recentLogs = document.getElementById('recent-logs');
+  if (recentLogs) {
+    recentLogs.innerHTML = '';
+  }
+  
   addLog('系统', '日志已清空', 'info');
 }
 
