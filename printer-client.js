@@ -5,10 +5,13 @@ const { exec } = require('child_process');
 
 // 配置定义
 const config = {
-  serverAddress: 'ws://localhost:17026', // WebSocket服务器地址
-  reconnectInterval: 5000, // 重连间隔（毫秒）增加到5秒，避免过于频繁重连
-  logDirectory: './logs' // 日志目录
+  serverAddress: 'ws://localhost:17026',
+  reconnectInterval: 5000,
+  maxReconnectInterval: 60000,
+  logDirectory: './logs'
 };
+
+let currentReconnectInterval = config.reconnectInterval;
 
 // 创建日志目录
 const logDir = path.join(__dirname, config.logDirectory);
@@ -81,38 +84,55 @@ function cleanupOldLogs(dateStr) {
   }
 }
 
-// WebSocket连接
 let ws = null;
 let reconnectTimer = null;
 let heartbeatInterval = null;
-let connectionAttempts = 0; // 连接尝试次数
-const maxConnectionAttempts = 5; // 最大连接尝试次数
-let globalPrinterId = null; // 全局打印机ID
+let connectionAttempts = 0;
+let globalPrinterId = null;
+
+let connectionStats = {
+  totalConnections: 0,
+  totalDisconnections: 0,
+  successfulConnections: 0,
+  lastConnectTime: null,
+  lastDisconnectTime: null,
+  totalUptime: 0,
+  connectionStartTime: null
+};
 
 // 连接到WebSocket服务器
 function connect() {
   log('正在连接到WebSocket服务器...');
   
   try {
-    ws = new WebSocket(config.serverAddress);
+    ws = new WebSocket(config.serverAddress, {
+      handshakeTimeout: 10000,
+      perMessageDeflate: false
+    });
     
     ws.on('open', () => {
       log('WebSocket服务器连接成功');
       
-      // 注册打印机
+      connectionAttempts = 0;
+      currentReconnectInterval = config.reconnectInterval;
+      
+      connectionStats.totalConnections++;
+      connectionStats.successfulConnections++;
+      connectionStats.lastConnectTime = new Date().toISOString();
+      connectionStats.connectionStartTime = Date.now();
+      
+      log(`连接统计: 总连接${connectionStats.totalConnections}次, 成功${connectionStats.successfulConnections}次`);
+      
       registerPrinter();
       
-      // 清除重连计时器
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
       
-      // 启动心跳
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
       }
-      // 每20秒发送一次心跳（提高频率增强稳定性）
       heartbeatInterval = setInterval(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
@@ -132,19 +152,41 @@ function connect() {
     ws.on('close', () => {
       log('WebSocket服务器连接关闭');
       
-      // 停止心跳
+      if (connectionStats.connectionStartTime) {
+        const sessionUptime = Date.now() - connectionStats.connectionStartTime;
+        connectionStats.totalUptime += sessionUptime;
+        connectionStats.connectionStartTime = null;
+      }
+      
+      connectionStats.totalDisconnections++;
+      connectionStats.lastDisconnectTime = new Date().toISOString();
+      
+      const avgUptime = connectionStats.totalDisconnections > 0 
+        ? Math.floor(connectionStats.totalUptime / connectionStats.totalDisconnections / 1000)
+        : 0;
+      
+      log(`连接统计: 断开${connectionStats.totalDisconnections}次, 平均在线时长${avgUptime}秒`);
+      
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
       }
       
-      // 尝试重连
       scheduleReconnect();
     });
     
     ws.on('error', (error) => {
       log(`WebSocket错误: ${error.message}`, 'error');
-      // 记录错误但不立即重连，等待close事件处理
+      
+      if (error.code === 'ECONNREFUSED') {
+        log('服务器连接被拒绝，请检查服务器是否运行', 'error');
+      } else if (error.code === 'ETIMEDOUT') {
+        log('连接超时，将尝试重连', 'warn');
+      } else if (error.code === 'ECONNRESET') {
+        log('连接被重置，将尝试重连', 'warn');
+      } else {
+        log(`未知错误: ${error.code}`, 'error');
+      }
     });
     
   } catch (error) {
@@ -260,10 +302,15 @@ function handleMessage(data) {
       break;
       
     case 'ping':
-      // 回复心跳
       log(`收到服务器ping消息，回复pong`);
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+      }
+      break;
+      
+    case 'server-ping':
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'server-pong', timestamp: Date.now() }));
       }
       break;
       
@@ -728,16 +775,21 @@ function updatePrinterName(newName) {
 function scheduleReconnect() {
   connectionAttempts++;
   
-  // 如果超过最大连接尝试次数，延长重连间隔
-  const actualReconnectInterval = connectionAttempts > maxConnectionAttempts 
-    ? config.reconnectInterval * 3 
-    : config.reconnectInterval;
+  if (connectionAttempts > 1) {
+    currentReconnectInterval = Math.min(
+      currentReconnectInterval * 1.5,
+      config.maxReconnectInterval
+    );
+    log(`重连间隔增加到 ${currentReconnectInterval}ms (第${connectionAttempts}次尝试)`);
+  } else {
+    currentReconnectInterval = config.reconnectInterval;
+  }
   
   if (!reconnectTimer) {
-    log(`将在 ${actualReconnectInterval}ms 后尝试重连... (第${connectionAttempts}次尝试)`);
+    log(`将在 ${currentReconnectInterval}ms 后尝试重连... (第${connectionAttempts}次尝试)`);
     reconnectTimer = setTimeout(() => {
       connect();
-    }, actualReconnectInterval);
+    }, currentReconnectInterval);
   }
 }
 

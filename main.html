@@ -14,6 +14,22 @@
     <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
     <!-- 添加html2canvas用于生成图片 -->
     <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- 检测 Electron 环境 -->
+    <script>
+        // 检测是否在 Electron 环境中运行
+        window.isElectron = typeof window.require === 'function';
+        
+        // 如果在 Electron 环境中，预加载 ipcRenderer
+        if (window.isElectron) {
+            try {
+                window.electron = window.require('electron');
+                window.ipcRenderer = window.electron.ipcRenderer;
+            } catch (error) {
+                console.warn('无法加载 Electron 模块:', error);
+                window.isElectron = false;
+            }
+        }
+    </script>
     <style>
         * {
             margin: 0;
@@ -816,6 +832,57 @@
             height: auto;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        .image-preview-img:hover {
+            transform: scale(1.02);
+        }
+        
+        /* 全屏图片样式 */
+        .fullscreen-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 1005;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .fullscreen-image.active {
+            display: flex;
+        }
+        .fullscreen-image img {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+            cursor: pointer;
+            animation: zoomIn 0.3s ease;
+        }
+        .fullscreen-close-hint {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 14px;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 16px;
+            border-radius: 20px;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes zoomIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
         }
         .image-preview-footer {
             padding: 20px;
@@ -873,7 +940,18 @@
             }
             .image-preview-btn {
                 width: 100%;
-                padding: 12px 20px;
+                margin: 5px 0;
+            }
+            
+            /* 全屏图片移动端适配 */
+            .fullscreen-image img {
+                max-width: 100%;
+                max-height: 100%;
+            }
+            .fullscreen-close-hint {
+                bottom: 20px;
+                font-size: 12px;
+                padding: 6px 12px;
             }
         }
         
@@ -3764,7 +3842,7 @@
                     <button @click="closeImagePreview" class="image-preview-close">&times;</button>
                 </div>
                 <div class="image-preview-body">
-                    <img :src="previewImageData" class="image-preview-img" alt="打印预览" />
+                    <img :src="previewImageData" class="image-preview-img" alt="打印预览" @click="toggleFullscreenImage" />
                 </div>
                 <div class="image-preview-footer">
                     <button @click="savePreviewImage" class="image-preview-btn primary">
@@ -3775,6 +3853,12 @@
                     </button>
                 </div>
             </div>
+        </div>
+
+        <!-- 全屏图片显示 -->
+        <div class="fullscreen-image" :class="{ active: showFullscreenImage }" @click="toggleFullscreenImage">
+            <img :src="previewImageData" alt="全屏图片" />
+            <div class="fullscreen-close-hint">点击图片或按 ESC 键关闭</div>
         </div>
 
         <!-- WebSocket服务器URL设置对话框 -->
@@ -5584,6 +5668,12 @@
                 
                 // 键盘事件监听器 - 防止回车键意外提交
                 const handleKeydown = (event) => {
+                    // 处理 ESC 键关闭全屏图片
+                    if (event.key === 'Escape' && showFullscreenImage.value) {
+                        showFullscreenImage.value = false;
+                        return;
+                    }
+                    
                     // 只在出库标签页且焦点在表单输入框时处理回车键
                     if (activeTab.value === 'outbound' && 
                         event.target.tagName === 'INPUT' && 
@@ -6085,6 +6175,7 @@
                 // 图片预览相关
                 const showImagePreview = ref(false);
                 const previewImageData = ref('');
+                const showFullscreenImage = ref(false);
                 
                 // WebSocket服务器URL设置对话框相关
                 const showWsUrlDialog = ref(false);
@@ -11117,6 +11208,12 @@
                 const closeImagePreview = () => {
                     showImagePreview.value = false;
                     previewImageData.value = '';
+                    showFullscreenImage.value = false;
+                };
+                
+                // 切换全屏图片显示
+                const toggleFullscreenImage = () => {
+                    showFullscreenImage.value = !showFullscreenImage.value;
                 };
                 
                 // 保存预览图片
@@ -11127,13 +11224,46 @@
                         return;
                     }
                     
+                    const defaultFileName = `出库单_${printData ? printData.outNo : Date.now()}.png`;
+                    
+                    // 检测是否在 Electron 环境中
+                    if (window.isElectron && window.ipcRenderer) {
+                        try {
+                            // 监听保存结果
+                            window.ipcRenderer.once('save-image-result', (event, result) => {
+                                if (result.success) {
+                                    ElMessage.success('图片已保存: ' + result.filePath);
+                                } else if (result.canceled) {
+                                    ElMessage.info('已取消保存');
+                                } else {
+                                    ElMessage.error('保存失败: ' + result.error);
+                                }
+                            });
+                            
+                            // 发送保存请求到主进程
+                            window.ipcRenderer.send('save-image', {
+                                imageData: previewImageData.value,
+                                defaultFileName: defaultFileName
+                            });
+                        } catch (error) {
+                            console.error('Electron 保存失败，使用浏览器方式:', error);
+                            fallbackBrowserSave(defaultFileName);
+                        }
+                    } else {
+                        // 浏览器环境，使用传统下载方式
+                        fallbackBrowserSave(defaultFileName);
+                    }
+                };
+                
+                // 浏览器环境回退保存方法
+                const fallbackBrowserSave = (fileName) => {
                     try {
-                        // 创建下载链接
                         const link = document.createElement('a');
                         link.href = previewImageData.value;
-                        link.download = `出库单_${printData ? printData.outNo : Date.now()}.png`;
+                        link.download = fileName;
+                        document.body.appendChild(link);
                         link.click();
-                        
+                        document.body.removeChild(link);
                         ElMessage.success('图片已保存');
                     } catch (error) {
                         console.error('保存图片失败:', error);
@@ -11602,6 +11732,8 @@
                     previewImageData,
                     closeImagePreview,
                     savePreviewImage,
+                    showFullscreenImage,
+                    toggleFullscreenImage,
                     
                     // 移除不再需要的Search组件
                     

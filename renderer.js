@@ -258,16 +258,12 @@ function updateTime() {
 }
 
 function openKucuSystem() {
-  const kucuFilePath = path.join('D:', 'print-system', 'hot-coil-print-system',  'main.html');
-  shell.openPath(kucuFilePath).then((error) => {
-    if (error) {
-      addLog('库粗系统', `打开失败: ${error}`, 'error');
-    } else {
-      addLog('库粗系统', '已成功打开', 'success');
-      document.getElementById('kucu-system-status').textContent = '已打开';
-      document.getElementById('kucu-system-status').classList.add('running');
-    }
-  });
+  // 使用 IPC 通知主进程打开库存系统窗口
+  ipcRenderer.send('open-kucu-system');
+  
+  addLog('库粗系统', '正在打开库存系统...', 'info');
+  document.getElementById('kucu-system-status').textContent = '已打开';
+  document.getElementById('kucu-system-status').classList.add('running');
 }
 
 function editRemoteAccessUrl() {

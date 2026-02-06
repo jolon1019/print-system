@@ -1,8 +1,10 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 
 let mainWindow;
+let kucuWindow;
 let printServerProcess = null;
 let printerClientProcess = null;
 let pythonMonitorProcess = null;
@@ -249,6 +251,32 @@ ipcMain.on('update-remote-url', (event, newUrl) => {
   }
 });
 
+ipcMain.on('open-kucu-system', () => {
+  if (kucuWindow) {
+    kucuWindow.focus();
+    return;
+  }
+
+  kucuWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 1000,
+    minHeight: 600,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    },
+    icon: path.join(__dirname, 'icon.png'),
+    title: '热卷出入库管理系统'
+  });
+
+  kucuWindow.loadFile('main.html');
+  
+  kucuWindow.on('closed', () => {
+    kucuWindow = null;
+  });
+});
+
 ipcMain.on('kill-port-17026', () => {
   const batPath = path.join(__dirname, 'kill-port-17026-en.bat');
   
@@ -280,4 +308,31 @@ ipcMain.on('kill-port-17026', () => {
       type: code === 0 ? 'success' : 'error'
     });
   });
+});
+
+ipcMain.on('save-image', async (event, { imageData, defaultFileName }) => {
+  try {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: defaultFileName,
+      filters: [
+        { name: 'PNG Image', extensions: ['png'] },
+        { name: 'JPEG Image', extensions: ['jpg', 'jpeg'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['createDirectory']
+    });
+
+    if (!result.canceled && result.filePath) {
+      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(result.filePath, buffer);
+      
+      event.reply('save-image-result', { success: true, filePath: result.filePath });
+    } else {
+      event.reply('save-image-result', { success: false, canceled: true });
+    }
+  } catch (error) {
+    console.error('保存图片失败:', error);
+    event.reply('save-image-result', { success: false, error: error.message });
+  }
 });

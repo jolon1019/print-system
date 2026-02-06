@@ -444,8 +444,12 @@ function generatePrintTemplate(data) {
 const wss = new WebSocket.Server({ 
   host: '127.0.0.1',
   port: 17026,
-  perMessageDeflate: false, // 禁用压缩以减少复杂性
-  maxPayload: 10 * 1024 * 1024 // 设置最大消息负载为10MB
+  perMessageDeflate: false,
+  maxPayload: 10 * 1024 * 1024,
+  clientTracking: true,
+  verifyClient: (info, callback) => {
+    callback(true);
+  }
 });
 
 
@@ -561,11 +565,40 @@ wss.on('connection', (ws, req) => {
   
   log(`新的客户端连接: ${clientId}`);
   
-  // 移除严格的验证超时，改为更宽松的连接管理
-  // FRP 穿透场景下，连接可能需要更长时间才能完成握手
-  let validationTimeout = null;
+  let clientHeartbeatInterval = null;
+  let missedPings = 0;
+  const MAX_MISSED_PINGS = 3;
   
-  // 发送欢迎消息
+  const startClientHeartbeat = () => {
+    if (clientHeartbeatInterval) {
+      clearInterval(clientHeartbeatInterval);
+    }
+    
+    clientHeartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'server-ping',
+          timestamp: Date.now()
+        }));
+        
+        missedPings++;
+        
+        if (missedPings >= MAX_MISSED_PINGS) {
+          log(`客户端 ${clientId} 心跳超时，关闭连接`, 'warn');
+          ws.terminate();
+        }
+      } else {
+        clearInterval(clientHeartbeatInterval);
+      }
+    }, 25000);
+  };
+  
+  const resetMissedPings = () => {
+    missedPings = 0;
+  };
+  
+  startClientHeartbeat();
+  
   ws.send(JSON.stringify({
     type: 'welcome',
     message: '欢迎连接到热卷打印服务器',
@@ -578,11 +611,7 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message);
       log(`收到消息 [${data.type}]: ${clientId}`);
       
-      // 清除验证超时
-      if (validationTimeout) {
-        clearTimeout(validationTimeout);
-        validationTimeout = null;
-      }
+      resetMissedPings();
       
       handleMessage(ws, data, clientId);
     } catch (error) {
@@ -600,9 +629,13 @@ wss.on('connection', (ws, req) => {
   
   ws.on('close', () => {
     log(`客户端连接关闭: ${clientId}`);
+    
+    if (clientHeartbeatInterval) {
+      clearInterval(clientHeartbeatInterval);
+    }
+    
     let printerUpdated = false;
     
-    // 清理打印机（直接删除，避免离线记录堆积）
     for (const [printerId, printer] of printers.entries()) {
       if (printer.ws === ws) {
         printers.delete(printerId);
@@ -612,7 +645,6 @@ wss.on('connection', (ws, req) => {
       }
     }
     
-    // 清理移动端
     for (const [mobileId, mobileClient] of mobileClients.entries()) {
       if (mobileClient.ws === ws) {
         mobileClients.delete(mobileId);
@@ -621,7 +653,6 @@ wss.on('connection', (ws, req) => {
       }
     }
     
-    // 如果打印机列表有更新，广播更新
     if (printerUpdated) {
       broadcastPrinterList();
     }
@@ -630,6 +661,16 @@ wss.on('connection', (ws, req) => {
   ws.on('error', (error) => {
     log(`WebSocket错误: ${error.message}`, 'error');
     log(`错误堆栈: ${error.stack}`, 'error');
+    
+    if (error.code === 'ECONNRESET') {
+      log(`客户端 ${clientId} 连接被重置`, 'warn');
+    } else if (error.code === 'ETIMEDOUT') {
+      log(`客户端 ${clientId} 连接超时`, 'warn');
+    }
+    
+    if (clientHeartbeatInterval) {
+      clearInterval(clientHeartbeatInterval);
+    }
   });
 });
 
@@ -660,13 +701,16 @@ function handleMessage(ws, data, clientId) {
       
     case 'ping':
       handlePing(ws, data, clientId);
-      // 直接回复pong消息
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
           type: 'pong',
           timestamp: Date.now()
         }));
       }
+      break;
+      
+    case 'server-pong':
+      log(`收到客户端心跳响应: ${clientId}`, 'debug');
       break;
       
     case 'job-update':
