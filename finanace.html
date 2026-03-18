@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>财务管理系统 - 热卷贸易</title>
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.full.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <!-- 图表库 - 使用更稳定的CDN -->
     <script src="https://unpkg.com/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -791,8 +791,11 @@
                     💰 对账
                 </div>
                 <div class="tab-item" :class="{ active: activeTab === 'sync' }" @click="activeTab = 'sync'">
-                🔄 数据同步
-            </div>
+                    🔄 数据同步
+                </div>
+                <div class="tab-item" :class="{ active: activeTab === 'inboundAnalysis' }" @click="activeTab = 'inboundAnalysis'">
+                    📥 入库分析
+                </div>
             </div>
 
             <!-- 财务报表 -->
@@ -1648,6 +1651,106 @@
             </div>
         </div>
 
+        <!-- 入库分析 -->
+        <div v-if="activeTab === 'inboundAnalysis'" class="content-section">
+            <div class="card-header">
+                <h2>📥 入库分析</h2>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <select v-model="inboundAnalysis.dateRange" @change="loadInboundAnalysisData" style="padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 4px;">
+                        <option value="today">今日</option>
+                        <option value="week">本周</option>
+                        <option value="month">本月</option>
+                        <option value="lastMonth">上月</option>
+                        <option value="quarter">本季度</option>
+                        <option value="year">本年</option>
+                        <option value="all">全部</option>
+                    </select>
+                    <button @click="loadInboundAnalysisData" :disabled="inboundAnalysis.loading" style="background: #409EFF; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                        {{ inboundAnalysis.loading ? '加载中...' : '🔄 刷新' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 加载状态 -->
+            <div v-if="inboundAnalysis.loading" class="loading-container" style="text-align: center; padding: 40px;">
+                <div class="loading-spinner" style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #409EFF; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                <p style="color: #666;">正在加载入库数据...</p>
+            </div>
+
+            <!-- 数据展示 -->
+            <div v-else>
+                <!-- 统计卡片 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #409EFF;">{{ inboundAnalysis.totalCount }}</div>
+                        <div class="stat-label">入库总卷数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #67c23a;">{{ inboundAnalysis.totalWeight.toFixed(2) }}</div>
+                        <div class="stat-label">入库总重量(吨)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #e6a23c;">{{ inboundAnalysis.specsData.length }}</div>
+                        <div class="stat-label">规格种类</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #909399;">{{ inboundAnalysis.materialsData.length }}</div>
+                        <div class="stat-label">材质种类</div>
+                    </div>
+                </div>
+
+                <!-- 图表区域 -->
+                    <div class="charts-grid">
+                        <!-- 规格占比饼图 -->
+                        <div class="chart-card">
+                            <h3>📊 规格分类占比</h3>
+                            <div id="specsChart" style="width: 100%; height: 280px;"></div>
+                        </div>
+
+                        <!-- 材质占比饼图 -->
+                        <div class="chart-card">
+                            <h3>🔧 材质分类占比</h3>
+                            <div id="materialsChart" style="width: 100%; height: 280px;"></div>
+                        </div>
+
+                        <!-- 月度入库趋势图 -->
+                        <div class="chart-card full-width">
+                            <h3>📈 月度入库趋势</h3>
+                            <div id="monthlyChart" style="width: 100%; height: 250px;"></div>
+                        </div>
+                    </div>
+
+                <!-- 明细表格 -->
+                <div style="margin-top: 30px;">
+                    <h3 style="margin-bottom: 15px;">📋 入库明细</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                            <thead>
+                                <tr style="background: #f5f7fa;">
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">批号</th>
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">规格</th>
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">材质</th>
+                                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">重量(吨)</th>
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">入库日期</th>
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">单位</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="item in inboundAnalysis.rawData.slice(0, 20)" :key="item.id" style="border-bottom: 1px solid #f0f0f0;">
+                                    <td style="padding: 10px;">{{ item.batch_no || '-' }}</td>
+                                    <td style="padding: 10px;">{{ item.specification || '-' }}</td>
+                                    <td style="padding: 10px;">{{ item.material || '-' }}</td>
+                                    <td style="padding: 10px; text-align: right;">{{ parseFloat(item.weight || 0).toFixed(3) }}</td>
+                                    <td style="padding: 10px;">{{ item.in_date || '-' }}</td>
+                                    <td style="padding: 10px;">{{ item.unit || '-' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 详情查看对话框 -->
         <div v-if="showDetailDialogVisible" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
             <div style="background: white; width: 600px; max-width: 90%; max-height: 80vh; border-radius: 8px; padding: 20px; overflow-y: auto;">
@@ -2068,6 +2171,21 @@
                     barChart: null,
                     chartDates: [],
                     chartTransactions: [],
+                    
+                    // 入库分析
+                    inboundAnalysis: {
+                        loading: false,
+                        dateRange: 'all',
+                        specsData: [],
+                        materialsData: [],
+                        monthlyData: [],
+                        totalWeight: 0,
+                        totalCount: 0,
+                        specsChart: null,
+                        materialsChart: null,
+                        monthlyChart: null,
+                        rawData: []
+                    },
                     
                     // 图表加载状态
                     chartLoading: {
@@ -5153,6 +5271,286 @@
                     }
                 },
                 
+                // 加载入库分析数据
+                async loadInboundAnalysisData() {
+                    try {
+                        this.inboundAnalysis.loading = true;
+                        
+                        const dateRange = this.inboundAnalysis.dateRange;
+                        let startDate = new Date();
+                        let endDate = new Date();
+                        
+                        switch (dateRange) {
+                            case 'today':
+                                startDate.setHours(0, 0, 0, 0);
+                                endDate.setHours(23, 59, 59, 999);
+                                break;
+                            case 'week':
+                                startDate.setDate(startDate.getDate() - 7);
+                                break;
+                            case 'month':
+                                startDate.setDate(1);
+                                startDate.setHours(0, 0, 0, 0);
+                                break;
+                            case 'lastMonth':
+                                startDate.setMonth(startDate.getMonth() - 1);
+                                startDate.setDate(1);
+                                startDate.setHours(0, 0, 0, 0);
+                                endDate.setDate(0);
+                                endDate.setHours(23, 59, 59, 999);
+                                break;
+                            case 'quarter':
+                                const quarter = Math.floor(startDate.getMonth() / 3);
+                                startDate.setMonth(quarter * 3);
+                                startDate.setDate(1);
+                                startDate.setHours(0, 0, 0, 0);
+                                break;
+                            case 'year':
+                                startDate.setMonth(0);
+                                startDate.setDate(1);
+                                startDate.setHours(0, 0, 0, 0);
+                                break;
+                            case 'all':
+                                startDate = null;
+                                endDate = null;
+                                break;
+                        }
+                        
+                        let query = supabaseClient.from('inventory').select('*');
+                        
+                        if (startDate && endDate) {
+                            query = query.gte('in_date', startDate.toISOString().split('T')[0])
+                                .lte('in_date', endDate.toISOString().split('T')[0]);
+                        } else if (dateRange !== 'all') {
+                            query = query.gte('in_date', startDate.toISOString().split('T')[0]);
+                        }
+                        
+                        const { data: inventoryData, error } = await query.order('in_date', { ascending: false });
+                        
+                        if (error) throw error;
+                        
+                        const specsMap = new Map();
+                        const materialsMap = new Map();
+                        const monthlyMap = new Map();
+                        let totalWeight = 0;
+                        let totalCount = inventoryData.length;
+                        
+                        for (const item of inventoryData || []) {
+                            const weight = parseFloat(item.weight) || 0;
+                            totalWeight += weight;
+                            
+                            const spec = item.specification || '未知规格';
+                            const material = item.material || '未知材质';
+                            const inDate = item.in_date;
+                            const monthKey = inDate ? inDate.substring(0, 7) : '未知月份';
+                            
+                            if (specsMap.has(spec)) {
+                                specsMap.set(spec, specsMap.get(spec) + weight);
+                            } else {
+                                specsMap.set(spec, weight);
+                            }
+                            
+                            if (materialsMap.has(material)) {
+                                materialsMap.set(material, materialsMap.get(material) + weight);
+                            } else {
+                                materialsMap.set(material, weight);
+                            }
+                            
+                            if (monthlyMap.has(monthKey)) {
+                                monthlyMap.set(monthKey, monthlyMap.get(monthKey) + weight);
+                            } else {
+                                monthlyMap.set(monthKey, weight);
+                            }
+                        }
+                        
+                        const specsData = Array.from(specsMap.entries())
+                            .map(([name, value]) => ({ name, value }))
+                            .sort((a, b) => b.value - a.value);
+                        
+                        const materialsData = Array.from(materialsMap.entries())
+                            .map(([name, value]) => ({ name, value }))
+                            .sort((a, b) => b.value - a.value);
+                        
+                        const monthlyData = Array.from(monthlyMap.entries())
+                            .map(([month, weight]) => ({ month, weight }))
+                            .sort((a, b) => a.month.localeCompare(b.month));
+                        
+                        this.inboundAnalysis.rawData = inventoryData || [];
+                        this.inboundAnalysis.specsData = specsData;
+                        this.inboundAnalysis.materialsData = materialsData;
+                        this.inboundAnalysis.monthlyData = monthlyData;
+                        this.inboundAnalysis.totalWeight = totalWeight;
+                        this.inboundAnalysis.totalCount = totalCount;
+                        
+                        setTimeout(() => {
+                            this.renderInboundCharts();
+                        }, 500);
+                        
+                    } catch (error) {
+                        console.error('加载入库分析数据失败:', error);
+                        this.showAlert(`加载数据失败: ${error.message}`, 'error');
+                    } finally {
+                        this.inboundAnalysis.loading = false;
+                    }
+                },
+                
+                // 渲染入库分析图表
+                renderInboundCharts() {
+                    const specsData = this.inboundAnalysis.specsData;
+                    const materialsData = this.inboundAnalysis.materialsData;
+                    const monthlyData = this.inboundAnalysis.monthlyData;
+                    
+                    const chartColors = ['#409EFF', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#5656ee', '#ff85c0', '#ffc069', '#95de64', '#5cdbd3'];
+                    
+                    const specsChartDom = document.getElementById('specsChart');
+                    const materialsChartDom = document.getElementById('materialsChart');
+                    const monthlyChartDom = document.getElementById('monthlyChart');
+                    
+                    console.log('specsChart DOM:', specsChartDom, 'echarts:', typeof echarts);
+                    
+                    if (!specsChartDom || typeof echarts === 'undefined') {
+                        console.warn('图表DOM或echarts未准备好，1秒后重试');
+                        setTimeout(() => this.renderInboundCharts(), 1000);
+                        return;
+                    }
+                    
+                    if (specsData.length > 0) {
+                        if (this.inboundAnalysis.specsChart) {
+                            this.inboundAnalysis.specsChart.dispose();
+                        }
+                        this.inboundAnalysis.specsChart = echarts.init(specsChartDom);
+                        this.inboundAnalysis.specsChart.setOption({
+                            tooltip: {
+                                trigger: 'item',
+                                formatter: '{b}: {c} 吨 ({d}%)'
+                            },
+                            legend: {
+                                orient: 'vertical',
+                                left: 'left',
+                                top: 'middle',
+                                textStyle: { fontSize: 12 }
+                            },
+                            series: [{
+                                type: 'pie',
+                                radius: ['40%', '70%'],
+                                center: ['60%', '50%'],
+                                avoidLabelOverlap: false,
+                                itemStyle: {
+                                    borderRadius: 10,
+                                    borderColor: '#fff',
+                                    borderWidth: 2
+                                },
+                                label: {
+                                    show: true,
+                                    formatter: '{b}: {d}%'
+                                },
+                                emphasis: {
+                                    label: {
+                                        show: true,
+                                        fontSize: 14,
+                                        fontWeight: 'bold'
+                                    }
+                                },
+                                data: specsData.slice(0, 10).map((item, index) => ({
+                                    name: item.name,
+                                    value: item.value,
+                                    itemStyle: { color: chartColors[index % chartColors.length] }
+                                }))
+                            }]
+                        });
+                    }
+                    
+                    if (materialsData.length > 0) {
+                        if (this.inboundAnalysis.materialsChart) {
+                            this.inboundAnalysis.materialsChart.dispose();
+                        }
+                        this.inboundAnalysis.materialsChart = echarts.init(materialsChartDom);
+                        this.inboundAnalysis.materialsChart.setOption({
+                            tooltip: {
+                                trigger: 'item',
+                                formatter: '{b}: {c} 吨 ({d}%)'
+                            },
+                            legend: {
+                                orient: 'vertical',
+                                left: 'left',
+                                top: 'middle',
+                                textStyle: { fontSize: 12 }
+                            },
+                            series: [{
+                                type: 'pie',
+                                radius: ['40%', '70%'],
+                                center: ['60%', '50%'],
+                                avoidLabelOverlap: false,
+                                itemStyle: {
+                                    borderRadius: 10,
+                                    borderColor: '#fff',
+                                    borderWidth: 2
+                                },
+                                label: {
+                                    show: true,
+                                    formatter: '{b}: {d}%'
+                                },
+                                emphasis: {
+                                    label: {
+                                        show: true,
+                                        fontSize: 14,
+                                        fontWeight: 'bold'
+                                    }
+                                },
+                                data: materialsData.slice(0, 10).map((item, index) => ({
+                                    name: item.name,
+                                    value: item.value,
+                                    itemStyle: { color: chartColors[index % chartColors.length] }
+                                }))
+                            }]
+                        });
+                    }
+                    
+                    if (monthlyData.length > 0 && document.getElementById('monthlyChart')) {
+                        if (this.inboundAnalysis.monthlyChart) {
+                            this.inboundAnalysis.monthlyChart.dispose();
+                        }
+                        this.inboundAnalysis.monthlyChart = echarts.init(monthlyChartDom);
+                        this.inboundAnalysis.monthlyChart.setOption({
+                            tooltip: {
+                                trigger: 'axis',
+                                formatter: '{b}: {c} 吨'
+                            },
+                            xAxis: {
+                                type: 'category',
+                                data: monthlyData.map(item => item.month),
+                                axisLabel: {
+                                    rotate: monthlyData.length > 6 ? 45 : 0,
+                                    fontSize: 11
+                                }
+                            },
+                            yAxis: {
+                                type: 'value',
+                                name: '重量(吨)'
+                            },
+                            grid: {
+                                left: '3%',
+                                right: '4%',
+                                bottom: '3%',
+                                containLabel: true
+                            },
+                            series: [{
+                                data: monthlyData.map(item => item.weight),
+                                type: 'bar',
+                                barWidth: '60%',
+                                itemStyle: {
+                                    color: '#409EFF'
+                                },
+                                emphasis: {
+                                    itemStyle: {
+                                        color: '#67c23a'
+                                    }
+                                }
+                            }]
+                        });
+                    }
+                },
+                
                 // 从出库记录获取时间用于显示
                 async getOutboundTimeForDisplay(refNo) {
                     try {
@@ -5536,6 +5934,12 @@
                     // 当切换到对账标签时加载对账数据
                     if (newTab === 'reconciliation' && oldTab !== 'reconciliation') {
                         this.loadReconciliationData();
+                    }
+                    // 当切换到入库分析标签时加载数据
+                    if (newTab === 'inboundAnalysis' && oldTab !== 'inboundAnalysis') {
+                        setTimeout(() => {
+                            this.loadInboundAnalysisData();
+                        }, 300);
                     }
                 }
             }

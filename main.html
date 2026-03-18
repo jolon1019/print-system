@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>热卷出入库管理系统</title>
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.full.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <!-- 添加Excel导出库 -->
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
@@ -4955,7 +4955,21 @@
                     <el-button class="time-filter-btn" @click="filterByTime('yesterday')" :class="{ active: selectedTimeFilter === 'yesterday' }">昨日</el-button>
                     <el-button class="time-filter-btn" @click="filterByTime('thisMonth')" :class="{ active: selectedTimeFilter === 'thisMonth' }">本月</el-button>
                     <el-button class="time-filter-btn" @click="filterByTime('lastMonth')" :class="{ active: selectedTimeFilter === 'lastMonth' }">上月</el-button>
+                    <el-button class="time-filter-btn" @click="filterByTime('custom')" :class="{ active: selectedTimeFilter === 'custom' }">自定义</el-button>
                     <el-button class="time-filter-btn clear" @click="clearTimeFilter" v-if="selectedTimeFilter">清除筛选</el-button>
+                </div>
+
+                <div class="custom-date-range" v-if="selectedTimeFilter === 'custom'" style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+                    <el-date-picker
+                        v-model="customDateRange"
+                        type="daterange"
+                        range-separator="至"
+                        start-placeholder="开始日期"
+                        end-placeholder="结束日期"
+                        size="small"
+                        style="width: 320px;"
+                        @change="onCustomDateRangeChange"
+                    />
                 </div>
 
                 <!-- 出库类型筛选 -->
@@ -5226,6 +5240,7 @@
 
     <script>
         const { createApp, ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } = Vue;
+        
         const { ElMessage, ElMessageBox, ElIcon } = ElementPlus;
         // 使用简单的搜索图标替代方式
 
@@ -5393,7 +5408,7 @@
         
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        createApp({
+        const appConfig = {
             setup() {
                 // WebSocket远程打印相关 - 提前定义以确保模板渲染时可用
                 
@@ -5789,8 +5804,9 @@
                 const syncStatus = ref('online'); // online, offline, syncing, error
                 
                 // 时间段筛选相关
-                const selectedTimeFilter = ref('today'); // null, today, yesterday, thisMonth, lastMonth
+                const selectedTimeFilter = ref('today'); // null, today, yesterday, thisMonth, lastMonth, custom
                 const selectedOutTypeFilter = ref(''); // '', 1, 2, 3
+                const customDateRange = ref([]); // 自定义日期范围
 
                 // 从库存数据中提取的单位列表
                 const availableUnits = ref([]);
@@ -6973,10 +6989,16 @@
                 const filterByTime = (filterType) => {
                     selectedTimeFilter.value = filterType;
                 };
+
+                // 自定义日期范围变化处理
+                const onCustomDateRangeChange = (value) => {
+                    customDateRange.value = value;
+                };
                 
                 // 清除时间段筛选
                 const clearTimeFilter = () => {
                     selectedTimeFilter.value = null;
+                    customDateRange.value = [];
                 };
                 
                 // 根据时间段和出库类型筛选出库记录
@@ -7005,6 +7027,14 @@
                                 startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
                                 endDate = new Date(now.getFullYear(), now.getMonth(), 1);
                                 break;
+                            case 'custom':
+                                if (customDateRange.value && customDateRange.value.length === 2) {
+                                    startDate = new Date(customDateRange.value[0]);
+                                    startDate.setHours(0, 0, 0, 0);
+                                    endDate = new Date(customDateRange.value[1]);
+                                    endDate.setHours(23, 59, 59, 999);
+                                }
+                                break;
                             default:
                                 break;
                         }
@@ -7012,7 +7042,7 @@
                         if (startDate && endDate) {
                             filtered = filtered.filter(record => {
                                 const recordDate = new Date(record.created_at);
-                                return recordDate >= startDate && recordDate < endDate;
+                                return recordDate >= startDate && recordDate <= endDate;
                             });
                         }
                     }
@@ -11689,7 +11719,9 @@
                     isSyncing,
                     selectedTimeFilter,
                     selectedOutTypeFilter,
+                    customDateRange,
                     filterByTime,
+                    onCustomDateRangeChange,
                     clearTimeFilter,
                     lastSyncTime,
                     syncStatus,
@@ -11854,7 +11886,11 @@
                     isSubmittingOutbound
                 };
             }
-        }).use(ElementPlus).mount('#app');
+        };
+        
+        const app = createApp(appConfig);
+        app.use(ElementPlus);
+        app.mount('#app');
     </script>
 </body>
 </html>

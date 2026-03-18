@@ -11,9 +11,9 @@
     <link rel="apple-touch-icon" href="icons/icon.svg">
     <link rel="manifest" href="manifest.json">
     <title>开平加工单 - 热卷开平管理系统</title>
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.full.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <!-- 针对老款华为手机的兼容性优化 -->
     <script>
@@ -2430,9 +2430,10 @@
 
     <script>
         const { createApp, ref, reactive, onMounted, onUnmounted, computed, watch } = Vue;
+        
         const { ElMessage, ElMessageBox } = ElementPlus;
 
-        createApp({
+        const appConfig = {
             setup() {
                 const SUPABASE_URL = 'https://likgolefqrhntbiscxdr.supabase.co';
                 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
@@ -3579,7 +3580,11 @@
                     toggleOrderExpand
                 };
             }
-        }).use(ElementPlus).mount('#app');
+        };
+        
+        const app = createApp(appConfig);
+        app.use(ElementPlus);
+        app.mount('#app');
     </script>
     
     <!-- Service Worker注册 -->

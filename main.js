@@ -9,6 +9,26 @@ let printServerProcess = null;
 let printerClientProcess = null;
 let pythonMonitorProcess = null;
 
+const PROCESS_CONFIG = {
+  'python-monitor': {
+    autoRestart: true,
+    maxRestarts: 5,
+    restartDelay: 3000,
+    restartCount: 0,
+    lastRestartTime: 0,
+  },
+  'print-server': {
+    autoRestart: false,
+    maxRestarts: 0,
+    restartCount: 0,
+  },
+  'printer-client': {
+    autoRestart: false,
+    maxRestarts: 0,
+    restartCount: 0,
+  }
+};
+
 function createWindow() {
   console.log('正在创建 Electron 窗口...');
   mainWindow = new BrowserWindow({
@@ -169,7 +189,8 @@ ipcMain.on('start-python-monitor', () => {
 
   pythonMonitorProcess = spawn('python', ['python_monitor.py'], {
     cwd: __dirname,
-    shell: true
+    shell: true,
+    stdio: ['pipe', 'pipe', 'pipe']
   });
 
   pythonMonitorProcess.stdout.on('data', (data) => {
@@ -189,28 +210,77 @@ ipcMain.on('start-python-monitor', () => {
   });
 
   pythonMonitorProcess.on('close', (code) => {
+    const config = PROCESS_CONFIG['python-monitor'];
+    
     mainWindow?.webContents.send('service-status', {
       service: 'python-monitor',
       status: 'stopped'
     });
+    
+    if (code !== 0 && config.autoRestart && config.restartCount < config.maxRestarts) {
+      const now = Date.now();
+      if (now - config.lastRestartTime > 10000) {
+        config.restartCount = 0;
+      }
+      
+      config.restartCount++;
+      config.lastRestartTime = now;
+      
+      mainWindow?.webContents.send('log-message', {
+        service: 'python-monitor',
+        message: `进程异常退出 (代码: ${code})，${config.restartDelay/1000}秒后自动重启 (${config.restartCount}/${config.maxRestarts})...`,
+        type: 'warning'
+      });
+      
+      setTimeout(() => {
+        if (!pythonMonitorProcess) {
+          ipcMain.emit('start-python-monitor');
+        }
+      }, config.restartDelay);
+    } else if (code !== 0) {
+      mainWindow?.webContents.send('log-message', {
+        service: 'python-monitor',
+        message: `进程异常退出 (代码: ${code})，已达到最大重启次数`,
+        type: 'error'
+      });
+    }
+    
     pythonMonitorProcess = null;
+  });
+
+  pythonMonitorProcess.on('error', (err) => {
+    mainWindow?.webContents.send('log-message', {
+      service: 'python-monitor',
+      message: `进程启动失败: ${err.message}`,
+      type: 'error'
+    });
   });
 
   mainWindow?.webContents.send('service-status', {
     service: 'python-monitor',
     status: 'running'
   });
+  
+  PROCESS_CONFIG['python-monitor'].restartCount = 0;
 });
 
 ipcMain.on('stop-python-monitor', () => {
   if (pythonMonitorProcess) {
+    PROCESS_CONFIG['python-monitor'].autoRestart = false;
     pythonMonitorProcess.kill();
     pythonMonitorProcess = null;
     mainWindow?.webContents.send('service-status', {
       service: 'python-monitor',
       status: 'stopped'
     });
+    mainWindow?.webContents.send('log-message', {
+      service: 'python-monitor',
+      message: '服务已手动停止',
+      type: 'info'
+    });
   }
+  PROCESS_CONFIG['python-monitor'].autoRestart = true;
+  PROCESS_CONFIG['python-monitor'].restartCount = 0;
 });
 
 function stopAllServices() {
