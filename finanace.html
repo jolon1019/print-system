@@ -73,6 +73,10 @@
             padding: 20px;
             margin-bottom: 20px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+            width: 100%;
         }
         
         .card-header {
@@ -717,6 +721,223 @@
         .chart-retry-btn:hover {
             background: #337ecc;
         }
+
+        /* 入库分析模块专用样式 */
+        .inbound-stats-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .inbound-stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .inbound-stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .inbound-stat-icon {
+            font-size: 32px;
+            opacity: 0.9;
+        }
+
+        .inbound-stat-content {
+            flex: 1;
+        }
+
+        .inbound-stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .inbound-stat-title {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
+        .inbound-charts-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .inbound-chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #ebeef5;
+        }
+
+        .inbound-chart-full {
+            grid-column: 1 / -1;
+        }
+
+        .inbound-chart-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .inbound-chart-icon {
+            font-size: 18px;
+        }
+
+        .inbound-chart-header h3 {
+            margin: 0;
+            font-size: 15px;
+            color: #303133;
+            font-weight: 600;
+        }
+
+        .inbound-table-container {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #ebeef5;
+        }
+
+        .inbound-table-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .inbound-table-icon {
+            font-size: 18px;
+        }
+
+        .inbound-table-header h3 {
+            margin: 0;
+            font-size: 15px;
+            color: #303133;
+            font-weight: 600;
+        }
+
+        .inbound-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .inbound-data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .inbound-data-table th {
+            background: #f8f9fa;
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            color: #606266;
+            border-bottom: 2px solid #e4e7ed;
+            white-space: nowrap;
+        }
+
+        .inbound-data-table td {
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #303133;
+        }
+
+        .inbound-data-table tbody tr:hover {
+            background: #f5f7fa;
+        }
+
+        .inbound-data-table tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        .inbound-data-table tbody tr:nth-child(even):hover {
+            background: #f0f2f5;
+        }
+
+        .inbound-batch-no {
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #409EFF;
+            font-weight: 500;
+        }
+
+        .inbound-material-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #ecf5ff;
+            color: #409EFF;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .inbound-weight {
+            text-align: right;
+            font-weight: 600;
+            color: #67c23a;
+        }
+
+        @media (max-width: 1200px) {
+            .inbound-stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .inbound-stats-container {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .inbound-stat-card {
+                padding: 16px;
+            }
+
+            .inbound-stat-value {
+                font-size: 24px;
+            }
+
+            .inbound-charts-container {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .inbound-chart-card {
+                padding: 12px;
+            }
+
+            .inbound-table-container {
+                padding: 12px;
+            }
+
+            .inbound-data-table {
+                font-size: 12px;
+            }
+
+            .inbound-data-table th,
+            .inbound-data-table td {
+                padding: 8px 6px;
+            }
+        }
+
 </style>
 </head>
 <body>
@@ -1679,70 +1900,89 @@
 
             <!-- 数据展示 -->
             <div v-else>
-                <!-- 统计卡片 -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number" style="color: #409EFF;">{{ inboundAnalysis.totalCount }}</div>
-                        <div class="stat-label">入库总卷数</div>
+                <!-- 统计卡片 - 美化版 -->
+                <div class="inbound-stats-container">
+                    <div class="inbound-stat-card" style="--card-color: #409EFF; --card-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <div class="inbound-stat-icon">📦</div>
+                        <div class="inbound-stat-content">
+                            <div class="inbound-stat-value">{{ inboundAnalysis.totalCount }}</div>
+                            <div class="inbound-stat-title">入库总卷数</div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number" style="color: #67c23a;">{{ inboundAnalysis.totalWeight.toFixed(2) }}</div>
-                        <div class="stat-label">入库总重量(吨)</div>
+                    <div class="inbound-stat-card" style="--card-color: #67c23a; --card-bg: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                        <div class="inbound-stat-icon">⚖️</div>
+                        <div class="inbound-stat-content">
+                            <div class="inbound-stat-value">{{ inboundAnalysis.totalWeight.toFixed(2) }}</div>
+                            <div class="inbound-stat-title">入库总重量(吨)</div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number" style="color: #e6a23c;">{{ inboundAnalysis.specsData.length }}</div>
-                        <div class="stat-label">规格种类</div>
+                    <div class="inbound-stat-card" style="--card-color: #e6a23c; --card-bg: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <div class="inbound-stat-icon">📐</div>
+                        <div class="inbound-stat-content">
+                            <div class="inbound-stat-value">{{ inboundAnalysis.specsData.length }}</div>
+                            <div class="inbound-stat-title">规格种类</div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number" style="color: #909399;">{{ inboundAnalysis.materialsData.length }}</div>
-                        <div class="stat-label">材质种类</div>
+                    <div class="inbound-stat-card" style="--card-color: #909399; --card-bg: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <div class="inbound-stat-icon">🔧</div>
+                        <div class="inbound-stat-content">
+                            <div class="inbound-stat-value">{{ inboundAnalysis.materialsData.length }}</div>
+                            <div class="inbound-stat-title">材质种类</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 图表区域 -->
-                    <div class="charts-grid">
-                        <!-- 规格占比饼图 -->
-                        <div class="chart-card">
-                            <h3>📊 规格分类占比</h3>
-                            <div id="specsChart" style="width: 100%; height: 280px;"></div>
+                <!-- 图表区域 - 美化版 -->
+                <div class="inbound-charts-container">
+                    <div class="inbound-chart-card">
+                        <div class="inbound-chart-header">
+                            <span class="inbound-chart-icon">📊</span>
+                            <h3>规格分类占比</h3>
                         </div>
-
-                        <!-- 材质占比饼图 -->
-                        <div class="chart-card">
-                            <h3>🔧 材质分类占比</h3>
-                            <div id="materialsChart" style="width: 100%; height: 280px;"></div>
-                        </div>
-
-                        <!-- 月度入库趋势图 -->
-                        <div class="chart-card full-width">
-                            <h3>📈 月度入库趋势</h3>
-                            <div id="monthlyChart" style="width: 100%; height: 250px;"></div>
-                        </div>
+                        <div id="specsChart" style="width: 100%; height: 260px;"></div>
                     </div>
+                    <div class="inbound-chart-card">
+                        <div class="inbound-chart-header">
+                            <span class="inbound-chart-icon">🔧</span>
+                            <h3>材质分类占比</h3>
+                        </div>
+                        <div id="materialsChart" style="width: 100%; height: 260px;"></div>
+                    </div>
+                    <div class="inbound-chart-card inbound-chart-full">
+                        <div class="inbound-chart-header">
+                            <span class="inbound-chart-icon">📈</span>
+                            <h3>月度入库趋势</h3>
+                        </div>
+                        <div id="monthlyChart" style="width: 100%; height: 220px;"></div>
+                    </div>
+                </div>
 
-                <!-- 明细表格 -->
-                <div style="margin-top: 20px;">
-                    <h3 style="margin-bottom: 15px;">📋 入库明细</h3>
-                    <div style="overflow-x: auto;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <!-- 明细表格 - 美化版 -->
+                <div class="inbound-table-container">
+                    <div class="inbound-table-header">
+                        <span class="inbound-table-icon">📋</span>
+                        <h3>入库明细</h3>
+                    </div>
+                    <div class="inbound-table-wrapper">
+                        <table class="inbound-data-table">
                             <thead>
-                                <tr style="background: #f5f7fa;">
-                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">批号</th>
-                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">规格</th>
-                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">材质</th>
-                                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">重量(吨)</th>
-                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">入库日期</th>
-                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">单位</th>
+                                <tr>
+                                    <th>批号</th>
+                                    <th>规格</th>
+                                    <th>材质</th>
+                                    <th>重量(吨)</th>
+                                    <th>入库日期</th>
+                                    <th>单位</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="item in inboundAnalysis.rawData.slice(0, 20)" :key="item.id" style="border-bottom: 1px solid #f0f0f0;">
-                                    <td style="padding: 10px;">{{ item.batch_no || '-' }}</td>
-                                    <td style="padding: 10px;">{{ item.specification || '-' }}</td>
-                                    <td style="padding: 10px;">{{ item.material || '-' }}</td>
-                                    <td style="padding: 10px; text-align: right;">{{ parseFloat(item.weight || 0).toFixed(3) }}</td>
-                                    <td style="padding: 10px;">{{ item.in_date || '-' }}</td>
-                                    <td style="padding: 10px;">{{ item.unit || '-' }}</td>
+                                <tr v-for="item in inboundAnalysis.rawData.slice(0, 20)" :key="item.id">
+                                    <td><span class="inbound-batch-no">{{ item.batch_no || '-' }}</span></td>
+                                    <td>{{ item.specification || '-' }}</td>
+                                    <td><span class="inbound-material-tag">{{ item.material || '-' }}</span></td>
+                                    <td class="inbound-weight">{{ parseFloat(item.weight || 0).toFixed(3) }}</td>
+                                    <td>{{ item.in_date || '-' }}</td>
+                                    <td>{{ item.unit || '-' }}</td>
                                 </tr>
                             </tbody>
                         </table>
