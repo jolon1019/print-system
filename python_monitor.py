@@ -25,10 +25,7 @@ CONFIG = {
     'keywords': [
         '打印窗口',
         '打印',
-        'Print',
         '打印机',
-        'Print Dialog',
-        'Microsoft Print',
         '打印对话框',
     ],
     
