@@ -2873,18 +2873,31 @@
 
                 const formatDate = (dateString) => {
                     if (!dateString) return '';
-                    return new Date(dateString).toLocaleDateString('zh-CN');
+                    return new Date(dateString).toLocaleDateString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
                 };
 
                 const formatDateTime = (dateTimeString) => {
                     if (!dateTimeString) return '';
-                    const date = new Date(dateTimeString);
+                    let date;
+                    if (typeof dateTimeString === 'string' && !dateTimeString.endsWith('Z') && !dateTimeString.includes('+')) {
+                        date = new Date(dateTimeString + 'Z');
+                    } else {
+                        date = new Date(dateTimeString);
+                    }
                     return date.toLocaleString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit',
                         hour: '2-digit',
-                        minute: '2-digit'
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
                     });
                 };
 

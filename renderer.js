@@ -272,6 +272,7 @@ function updateTime() {
   const timeElement = document.getElementById('current-time');
   const now = new Date();
   timeElement.textContent = now.toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

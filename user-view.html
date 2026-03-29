@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>货物信息查看 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            min-height: 100vh;
+        }
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: linear-gradient(135deg, #409EFF, #337ecc);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+        .user-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .user-units {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .action-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+        .action-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+        .tabs {
+            margin-bottom: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            max-width: 500px;
+        }
+        .search-box .el-input {
+            flex: 1;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #409EFF;
+        }
+        .stat-value.total {
+            color: #67c23a;
+        }
+        .stat-value.weight {
+            color: #e6a23c;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #409EFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .form-tip {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 5px;
+        }
+        .dialog-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        @media (max-width: 768px) {
+            .header {
+                padding: 15px;
+                flex-direction: column;
+                gap: 15px;
+            }
+            .header-info {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .header-actions {
+                width: 100%;
+                justify-content: stretch;
+            }
+            .header-actions .action-btn,
+            .header-actions .logout-btn {
+                flex: 1;
+            }
+            .main-content {
+                padding: 15px;
+            }
+            .table-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-box {
+                max-width: 100%;
+            }
+            .action-buttons {
+                justify-content: stretch;
+            }
+            .action-buttons .el-button {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="app-container">
+            <div class="header">
+                <h1>热卷管理系统</h1>
+                <div class="header-info">
+                    <div class="user-info" v-if="currentUser">
+                        <div class="user-avatar">
+                            {{ currentUser.realName?.charAt(0) || '?' }}
+                        </div>
+                        <div class="user-details">
+                            <span class="user-name">{{ currentUser.realName || '未知用户' }}</span>
+                            <span class="user-units">单位: {{ currentUser.units?.join(', ') || '无' }}</span>
+                        </div>
+                    </div>
+                    <div class="header-actions" v-if="currentUser">
+                        <button class="action-btn" @click="openChangePasswordDialog">
+                            修改密码
+                        </button>
+                        <button class="logout-btn" @click="handleLogout">
+                            退出登录
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="page-header">
+                    <h2 class="page-title">货物信息查看</h2>
+                </div>
+
+                <el-tabs v-model="activeTab" class="tabs">
+                    <el-tab-pane label="库存信息" name="inventory">
+                        <div class="card">
+                            <div class="statistics">
+                                <div class="stat-card">
+                                    <span class="stat-label">总数</span>
+                                    <span class="stat-value">{{ inventoryStats.totalBatches }}</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">总重量(吨)</span>
+                                    <span class="stat-value weight">{{ inventoryStats.totalWeight }}</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">在库数</span>
+                                    <span class="stat-value total">{{ inventoryStats.inStock }}</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">已出库数</span>
+                                    <span class="stat-value">{{ inventoryStats.outStock }}</span>
+                                </div>
+                            </div>
+
+                            <div class="table-toolbar">
+                                <div class="search-box">
+                                    <el-input
+                                        v-model="searchQuery"
+                                        placeholder="搜索批号、材质、规格..."
+                                        clearable
+                                        @input="handleSearch"
+                                    >
+                                        <template #prefix>
+                                            <i class="el-icon-search"></i>
+                                        </template>
+                                    </el-input>
+                                </div>
+                                <div class="action-buttons">
+                                    <el-button-group>
+                                        <el-button 
+                                            :type="inventoryStatusFilter === 'all' ? 'primary' : ''"
+                                            @click="inventoryStatusFilter = 'all'"
+                                        >
+                                            全部库存
+                                        </el-button>
+                                        <el-button 
+                                            :type="inventoryStatusFilter === 'in_stock' ? 'primary' : ''"
+                                            @click="inventoryStatusFilter = 'in_stock'"
+                                        >
+                                            在库库存
+                                        </el-button>
+                                    </el-button-group>
+                                    <el-button type="primary" @click="exportInventoryData">
+                                        导出库存
+                                    </el-button>
+                                    <el-button @click="refreshData">
+                                        刷新
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <el-table 
+                                :data="filteredInventory" 
+                                v-loading="loading"
+                                stripe
+                                border
+                                style="width: 100%"
+                            >
+                                <el-table-column prop="batch_no" label="批号" min-width="120" fixed></el-table-column>
+                                <el-table-column prop="unit" label="单位" min-width="100"></el-table-column>
+                                <el-table-column prop="material" label="材质" min-width="100"></el-table-column>
+                                <el-table-column prop="specification" label="规格" min-width="200"></el-table-column>
+                                <el-table-column prop="weight" label="重量(吨)" min-width="100" align="right"></el-table-column>
+                                <el-table-column prop="vehicle_no" label="车号" min-width="100"></el-table-column>
+                                <el-table-column prop="storage_location" label="库位" min-width="100"></el-table-column>
+                                <el-table-column prop="in_date" label="入库日期" min-width="120">
+                                    <template #default="{ row }">
+                                        {{ formatDate(row.in_date) }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="status" label="状态" min-width="80">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.status === 1 ? 'success' : 'info'">
+                                            {{ row.status === 1 ? '在库' : '已出库' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="货权转移" min-width="150">
+                                    <template #default="{ row }">
+                                        <div v-if="row.lastTransfer">
+                                            <div style="font-size: 12px; color: #666;">
+                                                {{ formatDateTime(row.lastTransfer.transfer_date) }}
+                                            </div>
+                                            <div style="font-size: 11px; color: #999; margin-top: 2px;">
+                                                {{ row.lastTransfer.from_unit }} → {{ row.lastTransfer.to_unit }}
+                                            </div>
+                                        </div>
+                                        <span v-else style="color: #999; font-size: 12px;">无转移记录</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="150" fixed="right">
+                                    <template #default="{ row }">
+                                        <el-button 
+                                            type="info" 
+                                            size="small" 
+                                            @click="viewInventoryDetail(row)"
+                                        >
+                                            详情
+                                        </el-button>
+                                        <el-button 
+                                            type="primary" 
+                                            size="small" 
+                                            @click="openTransferDialog(row)"
+                                            :disabled="row.status !== 1"
+                                        >
+                                            转让
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <div v-if="filteredInventory.length === 0 && !loading" class="empty-state">
+                                <div class="empty-state-icon">📦</div>
+                                <p>暂无数据</p>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="出库记录" name="outbound">
+                        <div class="card">
+                            <div class="table-toolbar">
+                                <div class="search-box">
+                                    <el-input
+                                        v-model="outboundSearchQuery"
+                                        placeholder="搜索批号、车号、材质..."
+                                        clearable
+                                        @input="handleOutboundSearch"
+                                    >
+                                        <template #prefix>
+                                            <i class="el-icon-search"></i>
+                                        </template>
+                                    </el-input>
+                                </div>
+                                <div class="action-buttons">
+                                    <el-button type="primary" @click="exportOutboundData">
+                                        导出记录
+                                    </el-button>
+                                    <el-button @click="refreshData">
+                                        刷新
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <el-table 
+                                :data="filteredOutbound" 
+                                v-loading="loading"
+                                stripe
+                                border
+                                style="width: 100%"
+                            >
+                                <el-table-column prop="batch_no" label="批号" min-width="120" fixed></el-table-column>
+                                <el-table-column prop="material" label="材质" min-width="100"></el-table-column>
+                                <el-table-column prop="specification" label="规格" min-width="200"></el-table-column>
+                                <el-table-column prop="stock_weight" label="重量(吨)" min-width="100" align="right"></el-table-column>
+                                <el-table-column prop="vehicle_no" label="车号" min-width="100"></el-table-column>
+                                <el-table-column prop="out_type" label="出库方式" min-width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="getOutTypeTagType(row.out_type)" size="small">
+                                            {{ getOutTypeText(row.out_type) }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="out_date" label="出库日期" min-width="120">
+                                    <template #default="{ row }">
+                                        {{ formatDate(row.out_date) }}
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <div v-if="filteredOutbound.length === 0 && !loading" class="empty-state">
+                                <div class="empty-state-icon">📋</div>
+                                <p>暂无出库记录</p>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="货权转让" name="transfer">
+                        <div class="card">
+                            <div class="table-toolbar">
+                                <div class="search-box">
+                                    <el-input
+                                        v-model="transferSearchQuery"
+                                        placeholder="搜索批号、转让单位、接收单位..."
+                                        clearable
+                                        @input="handleTransferSearch"
+                                    >
+                                        <template #prefix>
+                                            <i class="el-icon-search"></i>
+                                        </template>
+                                    </el-input>
+                                </div>
+                                <div class="action-buttons">
+                                    <el-button type="primary" @click="exportTransferData">
+                                        导出记录
+                                    </el-button>
+                                    <el-button @click="refreshTransferData">
+                                        刷新
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <el-table 
+                                :data="filteredTransfer" 
+                                v-loading="transferLoading"
+                                stripe
+                                border
+                                style="width: 100%"
+                            >
+                                <el-table-column prop="batch_no" label="批号" min-width="120" fixed></el-table-column>
+                                <el-table-column prop="from_unit" label="转让单位" min-width="120"></el-table-column>
+                                <el-table-column prop="to_unit" label="接收单位" min-width="120"></el-table-column>
+                                <el-table-column prop="transfer_reason" label="转让原因" min-width="200"></el-table-column>
+                                <el-table-column prop="operator_name" label="操作人" min-width="100"></el-table-column>
+                                <el-table-column prop="transfer_date" label="转让时间" min-width="160">
+                                    <template #default="{ row }">
+                                        {{ formatDateTime(row.transfer_date) }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="status" label="状态" min-width="80">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.status === 1 ? 'success' : 'info'">
+                                            {{ row.status === 1 ? '已完成' : '已取消' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <div v-if="filteredTransfer.length === 0 && !transferLoading" class="empty-state">
+                                <div class="empty-state-icon">📋</div>
+                                <p>暂无转让记录</p>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+                </el-tabs>
+            </div>
+        </div>
+
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+
+        <el-dialog
+            v-model="changePasswordDialogVisible"
+            title="修改密码"
+            width="400px"
+            @close="resetPasswordForm"
+        >
+            <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="100px">
+                <el-form-item label="原密码" prop="oldPassword">
+                    <el-input 
+                        v-model="passwordForm.oldPassword" 
+                        type="password" 
+                        placeholder="请输入原密码"
+                        show-password
+                    ></el-input>
+                </el-form-item>
+
+                <el-form-item label="新密码" prop="newPassword">
+                    <el-input 
+                        v-model="passwordForm.newPassword" 
+                        type="password" 
+                        placeholder="请输入新密码"
+                        show-password
+                    ></el-input>
+                    <div class="form-tip">密码长度至少6位</div>
+                </el-form-item>
+
+                <el-form-item label="确认密码" prop="confirmPassword">
+                    <el-input 
+                        v-model="passwordForm.confirmPassword" 
+                        type="password" 
+                        placeholder="请再次输入新密码"
+                        show-password
+                    ></el-input>
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="changePasswordDialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="handleChangePassword" :loading="changingPassword">
+                        确定
+                    </el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="transferDialogVisible"
+            title="货权转让"
+            width="500px"
+            @close="resetTransferForm"
+        >
+            <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
+                <el-form-item label="批号">
+                    <el-input v-model="transferForm.batchNo" disabled></el-input>
+                </el-form-item>
+
+                <el-form-item label="当前单位">
+                    <el-input v-model="transferForm.fromUnit" disabled></el-input>
+                </el-form-item>
+
+                <el-form-item label="接收单位" prop="toUnit">
+                    <el-input
+                        v-model="transferForm.toUnit"
+                        placeholder="请输入接收单位"
+                        clearable
+                    ></el-input>
+           
+                </el-form-item>
+
+                <el-form-item label="转让原因" prop="transferReason">
+                    <el-input
+                        v-model="transferForm.transferReason"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="请输入转让原因"
+                    ></el-input>
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="transferDialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="handleTransfer" :loading="transferring">
+                        确认转让
+                    </el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="inventoryDetailDialogVisible"
+            title="库存详情"
+            width="700px"
+            @close="resetInventoryDetail"
+        >
+            <el-descriptions :column="2" border>
+                <el-descriptions-item label="批号" :span="2">{{ inventoryDetail.batch_no }}</el-descriptions-item>
+                <el-descriptions-item label="当前单位">{{ inventoryDetail.unit }}</el-descriptions-item>
+                <el-descriptions-item label="状态">
+                    <el-tag :type="inventoryDetail.status === 1 ? 'success' : 'info'">
+                        {{ inventoryDetail.status === 1 ? '在库' : '已出库' }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="材质">{{ inventoryDetail.material }}</el-descriptions-item>
+                <el-descriptions-item label="规格">{{ inventoryDetail.specification }}</el-descriptions-item>
+                <el-descriptions-item label="重量">{{ inventoryDetail.weight }} 吨</el-descriptions-item>
+                <el-descriptions-item label="库位">{{ inventoryDetail.storage_location }}</el-descriptions-item>
+                <el-descriptions-item label="车号">{{ inventoryDetail.vehicle_no || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="入库日期">{{ formatDate(inventoryDetail.in_date) }}</el-descriptions-item>
+            </el-descriptions>
+
+            <div style="margin-top: 20px;">
+                <h4 style="margin-bottom: 10px;">货权转移历史</h4>
+                <el-table 
+                    :data="inventoryDetail.transferHistory" 
+                    stripe
+                    border
+                    size="small"
+                    style="width: 100%"
+                    max-height="300"
+                >
+                    <el-table-column prop="transfer_date" label="转移时间" width="160">
+                        <template #default="{ row }">
+                            {{ formatDateTime(row.transfer_date) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="from_unit" label="转让单位" width="120"></el-table-column>
+                    <el-table-column prop="to_unit" label="接收单位" width="120"></el-table-column>
+                    <el-table-column prop="transfer_reason" label="转让原因" min-width="150"></el-table-column>
+                    <el-table-column prop="operator_name" label="操作人" width="100"></el-table-column>
+                    <el-table-column prop="remark" label="备注" min-width="150"></el-table-column>
+                    <el-table-column prop="status" label="状态" width="80">
+                        <template #default="{ row }">
+                            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+                                {{ row.status === 1 ? '已完成' : '已取消' }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div v-if="!inventoryDetail.transferHistory || inventoryDetail.transferHistory.length === 0" style="text-align: center; padding: 20px; color: #999;">
+                    暂无转移记录
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="inventoryDetailDialogVisible = false">关闭</el-button>
+                </div>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+        const app = createApp({
+            setup() {
+                const SUPABASE_URL = 'https://likgolefqrhntbiscxdr.supabase.co';
+                const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+                
+                const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                const currentUser = ref(null);
+                const activeTab = ref('inventory');
+                const loading = ref(false);
+                const searchQuery = ref('');
+                const outboundSearchQuery = ref('');
+                const inventoryStatusFilter = ref('in_stock');
+                const inventoryData = ref([]);
+                const outboundData = ref([]);
+                const changePasswordDialogVisible = ref(false);
+                const changingPassword = ref(false);
+                const passwordFormRef = ref(null);
+                const transferDialogVisible = ref(false);
+                const transferring = ref(false);
+                const transferFormRef = ref(null);
+                const transferLoading = ref(false);
+                const transferSearchQuery = ref('');
+                const transferData = ref([]);
+                const inventoryDetailDialogVisible = ref(false);
+                const inventoryDetail = reactive({
+                    id: null,
+                    batch_no: '',
+                    unit: '',
+                    material: '',
+                    specification: '',
+                    weight: 0,
+                    storage_location: '',
+                    vehicle_no: '',
+                    in_date: '',
+                    status: 1,
+                    transferHistory: []
+                });
+
+                const inventoryStats = reactive({
+                    totalBatches: 0,
+                    totalWeight: 0,
+                    inStock: 0,
+                    outStock: 0
+                });
+
+                const passwordForm = reactive({
+                    oldPassword: '',
+                    newPassword: '',
+                    confirmPassword: ''
+                });
+
+                const transferForm = reactive({
+                    inventoryId: null,
+                    batchNo: '',
+                    fromUnit: '',
+                    toUnit: '',
+                    transferReason: ''
+                });
+
+                const passwordRules = {
+                    oldPassword: [
+                        { required: true, message: '请输入原密码', trigger: 'blur' }
+                    ],
+                    newPassword: [
+                        { required: true, message: '请输入新密码', trigger: 'blur' },
+                        { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+                    ],
+                    confirmPassword: [
+                        { required: true, message: '请再次输入新密码', trigger: 'blur' },
+                        {
+                            validator: (rule, value, callback) => {
+                                if (value !== passwordForm.newPassword) {
+                                    callback(new Error('两次输入的密码不一致'));
+                                } else {
+                                    callback();
+                                }
+                            },
+                            trigger: 'blur'
+                        }
+                    ]
+                };
+
+                const transferRules = {
+                    toUnit: [
+                        { required: true, message: '请输入接收单位', trigger: 'blur' },
+                        {
+                            validator: (rule, value, callback) => {
+                                if (value === transferForm.fromUnit) {
+                                    callback(new Error('不能转让给当前单位'));
+                                } else {
+                                    callback();
+                                }
+                            },
+                            trigger: 'blur'
+                        }
+                    ],
+                    transferReason: [
+                        { required: true, message: '请输入转让原因', trigger: 'blur' }
+                    ]
+                };
+
+                const filteredInventory = computed(() => {
+                    let result = inventoryData.value;
+                    
+                    if (inventoryStatusFilter.value === 'in_stock') {
+                        result = result.filter(item => item.status === 1);
+                    }
+                    
+                    if (!searchQuery.value) return result;
+                    const query = searchQuery.value.toLowerCase();
+                    return result.filter(item => 
+                        item.batch_no.toLowerCase().includes(query) ||
+                        item.material.toLowerCase().includes(query) ||
+                        item.specification.toLowerCase().includes(query)
+                    );
+                });
+
+                const filteredOutbound = computed(() => {
+                    if (!outboundSearchQuery.value) return outboundData.value;
+                    const query = outboundSearchQuery.value.toLowerCase();
+                    return outboundData.value.filter(item => 
+                        item.batch_no.toLowerCase().includes(query) ||
+                        item.vehicle_no?.toLowerCase().includes(query) ||
+                        item.material.toLowerCase().includes(query)
+                    );
+                });
+
+                const filteredTransfer = computed(() => {
+                    if (!transferSearchQuery.value) return transferData.value;
+                    const query = transferSearchQuery.value.toLowerCase();
+                    return transferData.value.filter(item => 
+                        item.batch_no.toLowerCase().includes(query) ||
+                        item.from_unit.toLowerCase().includes(query) ||
+                        item.to_unit.toLowerCase().includes(query)
+                    );
+                });
+
+                const checkAuth = () => {
+                    const userStr = localStorage.getItem('currentUser');
+                    if (!userStr) {
+                        window.location.href = 'login.html';
+                        return false;
+                    }
+                    currentUser.value = JSON.parse(userStr);
+                    return true;
+                };
+
+                const loadData = async () => {
+                    loading.value = true;
+                    try {
+                        const units = currentUser.value.units;
+
+                        const { data: inventory, error: inventoryError } = await supabaseClient
+                            .from('inventory')
+                            .select('*')
+                            .in('unit', units)
+                            .order('in_date', { ascending: false });
+
+                        if (inventoryError) throw inventoryError;
+                        inventoryData.value = inventory || [];
+
+                        const { data: outbound, error: outboundError } = await supabaseClient
+                            .from('outbound')
+                            .select('*')
+                            .in('unit', units)
+                            .order('out_date', { ascending: false });
+
+                        if (outboundError) throw outboundError;
+                        outboundData.value = outbound || [];
+
+                        await loadTransferData();
+                        await loadLastTransfers();
+                        calculateStats();
+                    } catch (error) {
+                        console.error('加载数据失败:', error);
+                        ElementPlus.ElMessage.error('加载数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadLastTransfers = async () => {
+                    try {
+                        const inventoryIds = inventoryData.value.map(item => item.id);
+                        if (inventoryIds.length === 0) return;
+
+                        const { data: transfers, error } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('*')
+                            .in('inventory_id', inventoryIds)
+                            .eq('status', 1)
+                            .order('transfer_date', { ascending: false });
+
+                        if (error) throw error;
+
+                        const lastTransferMap = new Map();
+                        transfers?.forEach(transfer => {
+                            if (!lastTransferMap.has(transfer.inventory_id)) {
+                                lastTransferMap.set(transfer.inventory_id, transfer);
+                            }
+                        });
+
+                        inventoryData.value.forEach(item => {
+                            item.lastTransfer = lastTransferMap.get(item.id) || null;
+                        });
+                    } catch (error) {
+                        console.error('加载最新转让记录失败:', error);
+                    }
+                };
+
+                const loadTransferData = async () => {
+                    transferLoading.value = true;
+                    try {
+                        const units = currentUser.value.units;
+                        const { data, error } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('*')
+                            .or(`from_unit.in.(${units.join(',')}),to_unit.in.(${units.join(',')})`)
+                            .order('transfer_date', { ascending: false });
+
+                        if (error) throw error;
+                        transferData.value = data || [];
+                    } catch (error) {
+                        console.error('加载转让数据失败:', error);
+                        ElementPlus.ElMessage.error('加载转让数据失败');
+                    } finally {
+                        transferLoading.value = false;
+                    }
+                };
+
+                const calculateStats = () => {
+                    inventoryStats.totalBatches = inventoryData.value.length;
+                    inventoryStats.totalWeight = inventoryData.value.reduce((sum, item) => sum + parseFloat(item.weight), 0).toFixed(3);
+                    inventoryStats.inStock = inventoryData.value.filter(item => item.status === 1).length;
+                    inventoryStats.outStock = inventoryData.value.filter(item => item.status !== 1).length;
+                };
+
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return '-';
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                };
+
+                const getOutTypeText = (outType) => {
+                    const typeMap = {
+                        1: '加工',
+                        2: '装卷',
+                        3: '销售',
+                        4: '货权转让'
+                    };
+                    return typeMap[outType] || '未知';
+                };
+
+                const getOutTypeTagType = (outType) => {
+                    const typeMap = {
+                        1: 'success',
+                        2: 'primary',
+                        3: 'info',
+                        4: 'warning'
+                    };
+                    return typeMap[outType] || '';
+                };
+
+                const formatDateTime = (dateStr) => {
+                    if (!dateStr) return '-';
+                    let date;
+                    if (typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                        date = new Date(dateStr + 'Z');
+                    } else {
+                        date = new Date(dateStr);
+                    }
+                    return date.toLocaleString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                };
+
+                const handleSearch = () => {};
+                const handleOutboundSearch = () => {};
+                const handleTransferSearch = () => {};
+
+                const refreshData = () => {
+                    loadData();
+                };
+
+                const refreshTransferData = () => {
+                    loadTransferData();
+                };
+
+                const openTransferDialog = (row) => {
+                    transferForm.inventoryId = row.id;
+                    transferForm.batchNo = row.batch_no;
+                    transferForm.fromUnit = row.unit;
+                    transferForm.toUnit = '';
+                    transferForm.transferReason = '';
+                    transferDialogVisible.value = true;
+                };
+
+                const resetTransferForm = () => {
+                    transferForm.inventoryId = null;
+                    transferForm.batchNo = '';
+                    transferForm.fromUnit = '';
+                    transferForm.toUnit = '';
+                    transferForm.transferReason = '';
+                    if (transferFormRef.value) {
+                        transferFormRef.value.clearValidate();
+                    }
+                };
+
+                const handleTransfer = async () => {
+                    if (!transferFormRef.value) return;
+                    
+                    try {
+                        const valid = await transferFormRef.value.validate();
+                        if (!valid) return;
+
+                        transferring.value = true;
+
+                        const { error: updateError } = await supabaseClient
+                            .from('inventory')
+                            .update({ 
+                                unit: transferForm.toUnit,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', transferForm.inventoryId);
+
+                        if (updateError) throw updateError;
+
+                        const { error: transferError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .insert({
+                                inventory_id: transferForm.inventoryId,
+                                batch_no: transferForm.batchNo,
+                                from_unit: transferForm.fromUnit,
+                                to_unit: transferForm.toUnit,
+                                transfer_date: new Date().toISOString(),
+                                transfer_reason: transferForm.transferReason,
+                                operator_id: currentUser.value.id,
+                                operator_name: currentUser.value.realName,
+                                status: 1
+                            });
+
+                        if (transferError) throw transferError;
+
+                        const { data: inventory, error: inventoryError } = await supabaseClient
+                            .from('inventory')
+                            .select('*')
+                            .eq('id', transferForm.inventoryId)
+                            .single();
+
+                        if (inventoryError) throw inventoryError;
+
+                        const { error: outboundError } = await supabaseClient
+                            .from('outbound')
+                            .insert({
+                                inventory_id: transferForm.inventoryId,
+                                batch_no: transferForm.batchNo,
+                                unit: transferForm.fromUnit,
+                                material: inventory.material,
+                                specification: inventory.specification,
+                                stock_weight: parseFloat(inventory.weight),
+                                out_weight: parseFloat(inventory.weight),
+                                unit_price: 0,
+                                total_amount: 0,
+                                out_type: 4,
+                                out_date: new Date().toISOString().split('T')[0],
+                                vehicle_no: inventory.vehicle_no || '',
+                                remark: `货权转让给${transferForm.toUnit}，原因：${transferForm.transferReason}`,
+                                ref_no: `TRANSFER-${Date.now()}`
+                            });
+
+                        if (outboundError) throw outboundError;
+
+                        transferDialogVisible.value = false;
+                        resetTransferForm();
+                        ElementPlus.ElMessage.success('货权转让成功，已为原单位创建出库记录');
+                        
+                        await loadData();
+                    } catch (error) {
+                        console.error('货权转让失败:', error);
+                        ElementPlus.ElMessage.error('货权转让失败: ' + error.message);
+                    } finally {
+                        transferring.value = false;
+                    }
+                };
+
+                const exportTransferData = () => {
+                    const data = filteredTransfer.value.map(item => ({
+                        '批号': item.batch_no,
+                        '转让单位': item.from_unit,
+                        '接收单位': item.to_unit,
+                        '转让原因': item.transfer_reason || '',
+                        '操作人': item.operator_name,
+                        '转让时间': formatDateTime(item.transfer_date),
+                        '状态': item.status === 1 ? '已完成' : '已取消'
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '货权转让');
+                    XLSX.writeFile(wb, `货权转让_${new Date().toLocaleDateString('zh-CN')}.xlsx`);
+                };
+
+                const viewInventoryDetail = async (row) => {
+                    try {
+                        const { data: inventory, error: inventoryError } = await supabaseClient
+                            .from('inventory')
+                            .select('*')
+                            .eq('id', row.id)
+                            .single();
+
+                        if (inventoryError) throw inventoryError;
+
+                        const { data: transfers, error: transferError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('*')
+                            .eq('inventory_id', row.id)
+                            .order('transfer_date', { ascending: false });
+
+                        if (transferError) throw transferError;
+
+                        Object.assign(inventoryDetail, {
+                            id: inventory.id,
+                            batch_no: inventory.batch_no,
+                            unit: inventory.unit,
+                            material: inventory.material,
+                            specification: inventory.specification,
+                            weight: inventory.weight,
+                            storage_location: inventory.storage_location,
+                            vehicle_no: inventory.vehicle_no,
+                            in_date: inventory.in_date,
+                            status: inventory.status,
+                            transferHistory: transfers || []
+                        });
+
+                        inventoryDetailDialogVisible.value = true;
+                    } catch (error) {
+                        console.error('加载库存详情失败:', error);
+                        ElementPlus.ElMessage.error('加载库存详情失败');
+                    }
+                };
+
+                const resetInventoryDetail = () => {
+                    Object.assign(inventoryDetail, {
+                        id: null,
+                        batch_no: '',
+                        unit: '',
+                        material: '',
+                        specification: '',
+                        weight: 0,
+                        storage_location: '',
+                        vehicle_no: '',
+                        in_date: '',
+                        status: 1,
+                        transferHistory: []
+                    });
+                };
+
+                const exportInventoryData = () => {
+                    const data = filteredInventory.value.map(item => ({
+                        '批号': item.batch_no,
+                        '单位': item.unit,
+                        '材质': item.material,
+                        '规格': item.specification,
+                        '重量(吨)': item.weight,
+                        '车号': item.vehicle_no || '',
+                        '库位': item.storage_location,
+                        '入库日期': formatDate(item.in_date),
+                        '状态': item.status === 1 ? '在库' : '已出库'
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '库存信息');
+                    XLSX.writeFile(wb, `库存信息_${new Date().toLocaleDateString('zh-CN')}.xlsx`);
+                };
+
+                const exportOutboundData = () => {
+                    const data = filteredOutbound.value.map(item => ({
+                        '批号': item.batch_no,
+                        '单位': item.unit,
+                        '材质': item.material,
+                        '规格': item.specification,
+                        '库存重量(吨)': item.stock_weight,
+                        '出库重量(吨)': item.out_weight,
+                        '单价(元)': item.unit_price,
+                        '总金额(元)': item.total_amount,
+                        '车号': item.vehicle_no || '',
+                        '出库方式': getOutTypeText(item.out_type),
+                        '出库日期': formatDate(item.out_date),
+                        '单号': item.ref_no || ''
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '出库记录');
+                    XLSX.writeFile(wb, `出库记录_${new Date().toLocaleDateString('zh-CN')}.xlsx`);
+                };
+
+                const openChangePasswordDialog = () => {
+                    changePasswordDialogVisible.value = true;
+                };
+
+                const resetPasswordForm = () => {
+                    passwordForm.oldPassword = '';
+                    passwordForm.newPassword = '';
+                    passwordForm.confirmPassword = '';
+                    if (passwordFormRef.value) {
+                        passwordFormRef.value.clearValidate();
+                    }
+                };
+
+                const handleChangePassword = async () => {
+                    if (!passwordFormRef.value) return;
+                    
+                    try {
+                        const valid = await passwordFormRef.value.validate();
+                        if (!valid) return;
+
+                        changingPassword.value = true;
+
+                        const { data: userData, error: userError } = await supabaseClient
+                            .from('users')
+                            .select('*')
+                            .eq('id', currentUser.value.id)
+                            .single();
+
+                        if (userError || !userData) {
+                            ElementPlus.ElMessage.error('获取用户信息失败');
+                            return;
+                        }
+
+                        const passwordHash = dcodeIO.bcrypt.hashSync(passwordForm.newPassword, 10);
+
+                        const { error: updateError } = await supabaseClient
+                            .from('users')
+                            .update({ password: passwordHash })
+                            .eq('id', currentUser.value.id);
+
+                        if (updateError) throw updateError;
+
+                        changePasswordDialogVisible.value = false;
+                        resetPasswordForm();
+                        ElementPlus.ElMessage.success('密码修改成功');
+                    } catch (error) {
+                        console.error('修改密码失败:', error);
+                        ElementPlus.ElMessage.error('修改密码失败: ' + error.message);
+                    } finally {
+                        changingPassword.value = false;
+                    }
+                };
+
+                const handleLogout = () => {
+                    localStorage.removeItem('currentUser');
+                    window.location.href = 'login.html';
+                };
+
+                onMounted(() => {
+                    if (checkAuth()) {
+                        loadData();
+                    }
+                });
+
+                return {
+                    currentUser,
+                    activeTab,
+                    loading,
+                    searchQuery,
+                    outboundSearchQuery,
+                    inventoryStatusFilter,
+                    filteredInventory,
+                    filteredOutbound,
+                    filteredTransfer,
+                    inventoryStats,
+                    handleSearch,
+                    handleOutboundSearch,
+                    handleTransferSearch,
+                    refreshData,
+                    refreshTransferData,
+                    exportInventoryData,
+                    exportOutboundData,
+                    exportTransferData,
+                    formatDate,
+                    formatDateTime,
+                    getOutTypeText,
+                    getOutTypeTagType,
+                    handleLogout,
+                    changePasswordDialogVisible,
+                    changingPassword,
+                    passwordForm,
+                    passwordRules,
+                    passwordFormRef,
+                    openChangePasswordDialog,
+                    resetPasswordForm,
+                    handleChangePassword,
+                    transferDialogVisible,
+                    transferring,
+                    transferForm,
+                    transferRules,
+                    transferFormRef,
+                    openTransferDialog,
+                    resetTransferForm,
+                    handleTransfer,
+                    transferLoading,
+                    transferSearchQuery,
+                    inventoryDetailDialogVisible,
+                    inventoryDetail,
+                    viewInventoryDetail,
+                    resetInventoryDetail
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>

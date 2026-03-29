@@ -3560,6 +3560,10 @@
                 <el-button type="primary" size="small" @click="showImportDialog">📥 导入Excel</el-button>
             </div>
             
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <el-button type="warning" size="small" @click="goToAdminPage">🔐 进入管理员页面</el-button>
+            </div>
+            
             <div style="margin-top: 10px; font-size: 11px; color: #666; line-height: 1.4;">
                 <p>💡 缓存说明：</p>
                 <p>• 首次访问自动刷新缓存</p>
@@ -5680,6 +5684,10 @@
                     }).catch(() => {
                     });
                 };
+
+                const goToAdminPage = () => {
+                    window.location.href = 'admin.html';
+                };
                 
                 // 键盘事件监听器 - 防止回车键意外提交
                 const handleKeydown = (event) => {
@@ -7451,29 +7459,22 @@
                 // 格式化日期时间（修复时区问题）
                 const formatDateTime = (dateTimeString) => {
                     if (!dateTimeString) return '';
-                    const date = new Date(dateTimeString);
-                    // 修复时区问题：确保显示正确的时间
-                    const options = {
-                        timeZone: 'Asia/Shanghai', // 明确指定时区为北京时间
+                    let date;
+                    if (typeof dateTimeString === 'string' && !dateTimeString.endsWith('Z') && !dateTimeString.includes('+')) {
+                        date = new Date(dateTimeString + 'Z');
+                    } else {
+                        date = new Date(dateTimeString);
+                    }
+                    return date.toLocaleString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit',
                         hour: '2-digit',
                         minute: '2-digit',
                         second: '2-digit',
-                        hour12: false // 使用24小时制
-                    };
-                    
-                    // 调试信息：记录原始时间和转换后的时间
-                    console.log('时间格式化调试:', {
-                        原始时间: dateTimeString,
-                        转换后时间: date.toLocaleString('zh-CN', options),
-                        本地时间: date.toLocaleString('zh-CN'),
-                        UTC时间: date.toISOString(),
-                        时区偏移: date.getTimezoneOffset()
+                        hour12: false
                     });
-                    
-                    return date.toLocaleString('zh-CN', options);
                 };
 
                 // 新增：导出数据到Excel
@@ -7567,6 +7568,7 @@
                             if (t === 1) return '加工';
                             if (t === 2) return '装卷';
                             if (t === 3) return '销售';
+                            if (t === 4) return '货权转让';
                             return '';
                         };
                         groupedOutboundHistory.value.forEach(item => {
@@ -11883,7 +11885,10 @@
                     isBasicInfoExpanded,
                     
                     // 出库提交状态
-                    isSubmittingOutbound
+                    isSubmittingOutbound,
+                    
+                    // 进入管理员页面
+                    goToAdminPage
                 };
             }
         };

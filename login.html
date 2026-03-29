@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户登录 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+            padding: 20px;
+        }
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .login-header h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .login-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .form-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .form-item label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        .login-btn {
+            width: 100%;
+            height: 44px;
+            font-size: 16px;
+            font-weight: 500;
+            margin-top: 10px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .back-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        .error-message {
+            color: #f56c6c;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <h1>热卷管理系统</h1>
+                    <p>用户登录</p>
+                </div>
+                
+                <el-form :model="loginForm" :rules="rules" ref="loginFormRef" class="login-form">
+                    <el-form-item prop="username">
+                        <label>用户名</label>
+                        <el-input 
+                            v-model="loginForm.username" 
+                            placeholder="请输入用户名"
+                            size="large"
+                            prefix-icon="User"
+                            @keyup.enter="handleLogin"
+                        ></el-input>
+                    </el-form-item>
+                    
+                    <el-form-item prop="password">
+                        <label>密码</label>
+                        <el-input 
+                            v-model="loginForm.password" 
+                            type="password" 
+                            placeholder="请输入密码"
+                            size="large"
+                            prefix-icon="Lock"
+                            show-password
+                            @keyup.enter="handleLogin"
+                        ></el-input>
+                    </el-form-item>
+                    
+                    <el-button 
+                        type="primary" 
+                        class="login-btn" 
+                        @click="handleLogin"
+                        :loading="loading"
+                    >
+                        登录
+                    </el-button>
+                </el-form>
+                
+                <div class="back-link">
+                    <a href="index.html">返回首页</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive } = Vue;
+
+        const app = createApp({
+            setup() {
+                const SUPABASE_URL = 'https://likgolefqrhntbiscxdr.supabase.co';
+                const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+                
+                const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                const loginFormRef = ref(null);
+                const loading = ref(false);
+                const loginForm = reactive({
+                    username: '',
+                    password: ''
+                });
+
+                const rules = {
+                    username: [
+                        { required: true, message: '请输入用户名', trigger: 'blur' }
+                    ],
+                    password: [
+                        { required: true, message: '请输入密码', trigger: 'blur' },
+                        { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+                    ]
+                };
+
+                const handleLogin = async () => {
+                    if (!loginFormRef.value) return;
+                    
+                    try {
+                        const valid = await loginFormRef.value.validate();
+                        if (!valid) return;
+
+                        loading.value = true;
+
+                        console.log('开始查询用户:', loginForm.username);
+                        
+                        const { data: userData, error: userError } = await supabaseClient
+                            .from('users')
+                            .select('*')
+                            .eq('username', loginForm.username)
+                            .eq('status', 1)
+                            .maybeSingle();
+
+                        console.log('查询结果:', { userData, userError });
+
+                        if (userError) {
+                            console.error('用户查询失败:', userError);
+                            ElementPlus.ElMessage.error('登录失败，请稍后重试');
+                            loading.value = false;
+                            return;
+                        }
+
+                        if (!userData) {
+                            ElementPlus.ElMessage.error('用户名或密码错误');
+                            loading.value = false;
+                            return;
+                        }
+
+                        const passwordMatch = dcodeIO.bcrypt.compareSync(loginForm.password, userData.password);
+                        if (!passwordMatch) {
+                            ElementPlus.ElMessage.error('用户名或密码错误');
+                            loading.value = false;
+                            return;
+                        }
+
+                        const { data: userUnits, error: unitsError } = await supabaseClient
+                            .from('user_units')
+                            .select('unit')
+                            .eq('user_id', userData.id);
+
+                        if (unitsError) {
+                            ElementPlus.ElMessage.error('获取用户单位信息失败');
+                            loading.value = false;
+                            return;
+                        }
+
+                        const units = userUnits.map(u => u.unit);
+                        
+                        localStorage.setItem('currentUser', JSON.stringify({
+                            id: userData.id,
+                            username: userData.username,
+                            realName: userData.real_name,
+                            role: userData.role,
+                            units: units
+                        }));
+
+                        ElementPlus.ElMessage.success('登录成功');
+                        
+                        setTimeout(() => {
+                            if (userData.role === 'admin') {
+                                window.location.href = 'admin.html';
+                            } else {
+                                window.location.href = 'user-view.html';
+                            }
+                        }, 500);
+
+                    } catch (error) {
+                        console.error('登录错误:', error);
+                        ElementPlus.ElMessage.error('登录失败，请重试');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                return {
+                    loginFormRef,
+                    loginForm,
+                    rules,
+                    loading,
+                    handleLogin
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>

@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统管理 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            min-height: 100vh;
+        }
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: linear-gradient(135deg, #409EFF, #337ecc);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+        .user-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .user-role {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            max-width: 400px;
+        }
+        .search-box .el-input {
+            flex: 1;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .unit-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .unit-tag {
+            margin: 0;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #409EFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .dialog-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .form-tip {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 5px;
+        }
+        @media (max-width: 768px) {
+            .header {
+                padding: 15px;
+                flex-direction: column;
+                gap: 15px;
+            }
+            .header-info {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .main-content {
+                padding: 15px;
+            }
+            .table-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-box {
+                max-width: 100%;
+            }
+            .action-buttons {
+                justify-content: stretch;
+            }
+            .action-buttons .el-button {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="app-container">
+            <div class="header">
+                <h1>热卷管理系统 - 系统管理</h1>
+                <div class="header-info">
+                    <div class="user-info" v-if="currentUser">
+                        <div class="user-avatar">
+                            {{ currentUser.realName?.charAt(0) || '?' }}
+                        </div>
+                        <div class="user-details">
+                            <span class="user-name">{{ currentUser.realName || '未知用户' }}</span>
+                            <span class="user-role">角色: {{ currentUser.role === 'admin' ? '管理员' : '普通用户' }}</span>
+                        </div>
+                    </div>
+                    <button class="logout-btn" @click="handleLogout" v-if="currentUser">
+                        退出登录
+                    </button>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="page-header">
+                    <h2 class="page-title">用户管理</h2>
+                </div>
+
+                <el-tabs v-model="activeTab" class="tabs">
+                    <el-tab-pane label="用户管理" name="users">
+                        <div class="card">
+                            <div class="table-toolbar">
+                                <div class="search-box">
+                                    <el-input
+                                        v-model="searchQuery"
+                                        placeholder="搜索用户名、真实姓名..."
+                                        clearable
+                                        @input="handleSearch"
+                                    >
+                                        <template #prefix>
+                                            <i class="el-icon-search"></i>
+                                        </template>
+                                    </el-input>
+                                </div>
+                                <div class="action-buttons">
+                                    <el-button type="primary" @click="openCreateDialog">
+                                        创建用户
+                                    </el-button>
+                                    <el-button @click="loadUsers">
+                                        刷新
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <el-table 
+                                :data="filteredUsers" 
+                                v-loading="loading"
+                                stripe
+                                border
+                                style="width: 100%"
+                            >
+                                <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                                <el-table-column prop="username" label="用户名" width="120"></el-table-column>
+                                <el-table-column prop="real_name" label="真实姓名" width="120"></el-table-column>
+                                <el-table-column prop="role" label="角色" width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.role === 'admin' ? 'danger' : 'primary'">
+                                            {{ row.role === 'admin' ? '管理员' : '普通用户' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="status" label="状态" width="80">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.status === 1 ? 'success' : 'info'">
+                                            {{ row.status === 1 ? '启用' : '禁用' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="绑定单位" min-width="200">
+                                    <template #default="{ row }">
+                                        <div class="unit-tags">
+                                            <el-tag 
+                                                v-for="unit in getUserUnits(row.id)" 
+                                                :key="unit"
+                                                class="unit-tag"
+                                                size="small"
+                                            >
+                                                {{ unit }}
+                                            </el-tag>
+                                            <span v-if="getUserUnits(row.id).length === 0" style="color: #999; font-size: 12px;">
+                                                无
+                                            </span>
+                                        </div>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="created_at" label="创建时间" width="160">
+                                    <template #default="{ row }">
+                                        {{ formatDateTime(row.created_at) }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="200" fixed="right">
+                                    <template #default="{ row }">
+                                        <el-button 
+                                            type="primary" 
+                                            size="small" 
+                                            @click="openEditDialog(row)"
+                                        >
+                                            编辑
+                                        </el-button>
+                                        <el-button 
+                                            type="danger" 
+                                            size="small" 
+                                            @click="handleDelete(row)"
+                                            :disabled="row.username === 'admin'"
+                                        >
+                                            删除
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </div>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="货权转让管理" name="transfer">
+                        <div class="card">
+                            <div class="table-toolbar">
+                                <div class="search-box">
+                                    <el-input
+                                        v-model="transferSearchQuery"
+                                        placeholder="搜索批号、转让单位、接收单位..."
+                                        clearable
+                                        @input="handleTransferSearch"
+                                    >
+                                        <template #prefix>
+                                            <i class="el-icon-search"></i>
+                                        </template>
+                                    </el-input>
+                                </div>
+                                <div class="action-buttons">
+                                    <el-button type="primary" @click="exportTransferData">
+                                        导出记录
+                                    </el-button>
+                                    <el-button @click="refreshTransferData">
+                                        刷新
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <el-table 
+                                :data="filteredTransfer" 
+                                v-loading="transferLoading"
+                                stripe
+                                border
+                                style="width: 100%"
+                            >
+                                <el-table-column prop="batch_no" label="批号" min-width="120" fixed></el-table-column>
+                                <el-table-column prop="from_unit" label="转让单位" min-width="120"></el-table-column>
+                                <el-table-column prop="to_unit" label="接收单位" min-width="120"></el-table-column>
+                                <el-table-column prop="transfer_reason" label="转让原因" min-width="200"></el-table-column>
+                                <el-table-column prop="operator_name" label="操作人" min-width="100"></el-table-column>
+                                <el-table-column prop="transfer_date" label="转让时间" min-width="160">
+                                    <template #default="{ row }">
+                                        {{ formatDateTime(row.transfer_date) }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="status" label="状态" min-width="80">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.status === 1 ? 'success' : 'info'">
+                                            {{ row.status === 1 ? '已完成' : '已取消' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="220" fixed="right">
+                                    <template #default="{ row }">
+                                        <el-button 
+                                            type="primary" 
+                                            size="small" 
+                                            @click="viewTransferDetail(row)"
+                                        >
+                                            详情
+                                        </el-button>
+                                        <el-button 
+                                            type="danger" 
+                                            size="small" 
+                                            @click="handleCancelTransfer(row)"
+                                            :disabled="row.status !== 1"
+                                        >
+                                            取消
+                                        </el-button>
+                                        <el-button 
+                                            type="danger" 
+                                            size="small" 
+                                            @click="handleDeleteTransfer(row)"
+                                        >
+                                            删除
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <div v-if="filteredTransfer.length === 0 && !transferLoading" class="empty-state">
+                                <div class="empty-state-icon">📋</div>
+                                <p>暂无转让记录</p>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+                </el-tabs>
+            </div>
+        </div>
+
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+
+        <el-dialog
+            v-model="dialogVisible"
+            :title="isEditMode ? '编辑用户' : '创建用户'"
+            width="500px"
+            @close="resetForm"
+        >
+            <el-form :model="userForm" :rules="formRules" ref="userFormRef" label-width="100px">
+                <el-form-item label="用户名" prop="username">
+                    <el-input 
+                        v-model="userForm.username" 
+                        placeholder="请输入用户名"
+                        :disabled="isEditMode"
+                    ></el-input>
+                </el-form-item>
+
+                <el-form-item label="密码" prop="password" v-if="!isEditMode">
+                    <el-input 
+                        v-model="userForm.password" 
+                        type="password" 
+                        placeholder="请输入密码"
+                        show-password
+                    ></el-input>
+                    <div class="form-tip">密码长度至少6位</div>
+                </el-form-item>
+
+                <el-form-item label="真实姓名" prop="realName">
+                    <el-input 
+                        v-model="userForm.realName" 
+                        placeholder="请输入真实姓名"
+                    ></el-input>
+                </el-form-item>
+
+                <el-form-item label="角色" prop="role">
+                    <el-select v-model="userForm.role" placeholder="请选择角色" style="width: 100%;">
+                        <el-option label="普通用户" value="user"></el-option>
+                        <el-option label="管理员" value="admin"></el-option>
+                    </el-select>
+                </el-form-item>
+
+                <el-form-item label="状态" prop="status">
+                    <el-switch
+                        v-model="userForm.status"
+                        active-text="启用"
+                        inactive-text="禁用"
+                        :active-value="1"
+                        :inactive-value="0"
+                    ></el-switch>
+                </el-form-item>
+
+                <el-form-item label="绑定单位" prop="units">
+                    <el-select
+                        v-model="userForm.units"
+                        multiple
+                        filterable
+                        allow-create
+                        placeholder="请选择或输入单位名称"
+                        style="width: 100%;"
+                    >
+                        <el-option
+                            v-for="unit in availableUnits"
+                            :key="unit"
+                            :label="unit"
+                            :value="unit"
+                        ></el-option>
+                    </el-select>
+                    <div class="form-tip">可以输入新单位名称，也可以从已有单位中选择</div>
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="dialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="handleSubmit" :loading="submitting">
+                        {{ isEditMode ? '保存' : '创建' }}
+                    </el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="transferDetailDialogVisible"
+            title="货权转让详情"
+            width="600px"
+            @close="resetTransferDetail"
+        >
+            <el-descriptions :column="1" border>
+                <el-descriptions-item label="转让ID">{{ transferDetail.id }}</el-descriptions-item>
+                <el-descriptions-item label="批号">{{ transferDetail.batch_no }}</el-descriptions-item>
+                <el-descriptions-item label="转让单位">{{ transferDetail.from_unit }}</el-descriptions-item>
+                <el-descriptions-item label="接收单位">{{ transferDetail.to_unit }}</el-descriptions-item>
+                <el-descriptions-item label="转让原因">{{ transferDetail.transfer_reason || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="备注">{{ transferDetail.remark || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="操作人">{{ transferDetail.operator_name }}</el-descriptions-item>
+                <el-descriptions-item label="转让时间">{{ formatDateTime(transferDetail.transfer_date) }}</el-descriptions-item>
+                <el-descriptions-item label="状态">
+                    <el-tag :type="transferDetail.status === 1 ? 'success' : 'info'">
+                        {{ transferDetail.status === 1 ? '已完成' : '已取消' }}
+                    </el-tag>
+                </el-descriptions-item>
+            </el-descriptions>
+
+            <div v-if="transferDetail.inventory" style="margin-top: 20px;">
+                <h4 style="margin-bottom: 10px;">货物信息</h4>
+                <el-descriptions :column="2" border>
+                    <el-descriptions-item label="材质">{{ transferDetail.inventory.material }}</el-descriptions-item>
+                    <el-descriptions-item label="规格">{{ transferDetail.inventory.specification }}</el-descriptions-item>
+                    <el-descriptions-item label="重量">{{ transferDetail.inventory.weight }} 吨</el-descriptions-item>
+                    <el-descriptions-item label="库位">{{ transferDetail.inventory.storage_location }}</el-descriptions-item>
+                    <el-descriptions-item label="入库日期">{{ formatDate(transferDetail.inventory.in_date) }}</el-descriptions-item>
+                    <el-descriptions-item label="当前状态">
+                        <el-tag :type="transferDetail.inventory.status === 1 ? 'success' : 'info'">
+                            {{ transferDetail.inventory.status === 1 ? '在库' : '已出库' }}
+                        </el-tag>
+                    </el-descriptions-item>
+                </el-descriptions>
+            </div>
+
+            <div v-if="transferDetail.transferHistory && transferDetail.transferHistory.length > 0" style="margin-top: 20px;">
+                <h4 style="margin-bottom: 10px;">货权转移历史</h4>
+                <el-table 
+                    :data="transferDetail.transferHistory" 
+                    stripe
+                    border
+                    size="small"
+                    style="width: 100%"
+                    max-height="300"
+                >
+                    <el-table-column prop="transfer_date" label="转移时间" width="160">
+                        <template #default="{ row }">
+                            {{ formatDateTime(row.transfer_date) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="from_unit" label="转让单位" width="120"></el-table-column>
+                    <el-table-column prop="to_unit" label="接收单位" width="120"></el-table-column>
+                    <el-table-column prop="transfer_reason" label="转让原因" min-width="150"></el-table-column>
+                    <el-table-column prop="operator_name" label="操作人" width="100"></el-table-column>
+                    <el-table-column prop="remark" label="备注" min-width="150"></el-table-column>
+                    <el-table-column prop="status" label="状态" width="80">
+                        <template #default="{ row }">
+                            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+                                {{ row.status === 1 ? '已完成' : '已取消' }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="transferDetailDialogVisible = false">关闭</el-button>
+                </div>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+        const app = createApp({
+            setup() {
+                const SUPABASE_URL = 'https://likgolefqrhntbiscxdr.supabase.co';
+                const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+                
+                const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                const currentUser = ref(null);
+                const loading = ref(false);
+                const submitting = ref(false);
+                const dialogVisible = ref(false);
+                const isEditMode = ref(false);
+                const searchQuery = ref('');
+                const activeTab = ref('users');
+                const users = ref([]);
+                const userUnits = ref([]);
+                const availableUnits = ref([]);
+                const userFormRef = ref(null);
+                const userUnitsMap = ref(new Map());
+                const transferLoading = ref(false);
+                const transferSearchQuery = ref('');
+                const transferData = ref([]);
+                const transferDetailDialogVisible = ref(false);
+                const transferDetail = reactive({
+                    id: null,
+                    batch_no: '',
+                    from_unit: '',
+                    to_unit: '',
+                    transfer_reason: '',
+                    operator_name: '',
+                    transfer_date: '',
+                    status: 1,
+                    inventory: null,
+                    transferHistory: []
+                });
+
+                const userForm = reactive({
+                    id: null,
+                    username: '',
+                    password: '',
+                    realName: '',
+                    role: 'user',
+                    status: 1,
+                    units: []
+                });
+
+                const formRules = {
+                    username: [
+                        { required: true, message: '请输入用户名', trigger: 'blur' },
+                        { min: 3, max: 50, message: '用户名长度在 3 到 50 个字符', trigger: 'blur' }
+                    ],
+                    password: [
+                        { required: true, message: '请输入密码', trigger: 'blur' },
+                        { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+                    ],
+                    realName: [
+                        { required: true, message: '请输入真实姓名', trigger: 'blur' }
+                    ],
+                    role: [
+                        { required: true, message: '请选择角色', trigger: 'change' }
+                    ]
+                };
+
+                const filteredUsers = computed(() => {
+                    if (!searchQuery.value) return users.value;
+                    const query = searchQuery.value.toLowerCase();
+                    return users.value.filter(user => 
+                        user.username.toLowerCase().includes(query) ||
+                        user.real_name.toLowerCase().includes(query)
+                    );
+                });
+
+                const filteredTransfer = computed(() => {
+                    if (!transferSearchQuery.value) return transferData.value;
+                    const query = transferSearchQuery.value.toLowerCase();
+                    return transferData.value.filter(item => 
+                        item.batch_no.toLowerCase().includes(query) ||
+                        item.from_unit.toLowerCase().includes(query) ||
+                        item.to_unit.toLowerCase().includes(query)
+                    );
+                });
+
+                const checkAuth = () => {
+                    const userStr = localStorage.getItem('currentUser');
+                    if (!userStr) {
+                        window.location.href = 'login.html';
+                        return false;
+                    }
+                    currentUser.value = JSON.parse(userStr);
+                    
+                    if (currentUser.value.role !== 'admin') {
+                        ElementPlus.ElMessage.error('只有管理员才能访问此页面');
+                        window.location.href = 'user-view.html';
+                        return false;
+                    }
+                    
+                    return true;
+                };
+
+                const loadUsers = async () => {
+                    loading.value = true;
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('users')
+                            .select('*')
+                            .order('created_at', { ascending: false });
+
+                        if (error) throw error;
+                        users.value = data || [];
+
+                        await loadUserUnits();
+                        await loadAvailableUnits();
+                    } catch (error) {
+                        console.error('加载用户失败:', error);
+                        ElementPlus.ElMessage.error('加载用户失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadUserUnits = async () => {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('user_units')
+                            .select('*');
+
+                        if (error) throw error;
+                        userUnits.value = data || [];
+                        
+                        const map = new Map();
+                        data?.forEach(uu => {
+                            if (!map.has(uu.user_id)) {
+                                map.set(uu.user_id, []);
+                            }
+                            map.get(uu.user_id).push(uu.unit);
+                        });
+                        userUnitsMap.value = map;
+                    } catch (error) {
+                        console.error('加载用户单位失败:', error);
+                    }
+                };
+
+                const loadAvailableUnits = async () => {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('inventory')
+                            .select('unit')
+                            .not('unit', 'is', null);
+
+                        if (error) throw error;
+                        
+                        const units = [...new Set(data?.map(item => item.unit) || [])];
+                        availableUnits.value = units;
+                    } catch (error) {
+                        console.error('加载可用单位失败:', error);
+                    }
+                };
+
+                const getUserUnits = (userId) => {
+                    return userUnitsMap.value.get(userId) || [];
+                };
+
+                const openCreateDialog = () => {
+                    isEditMode.value = false;
+                    dialogVisible.value = true;
+                };
+
+                const openEditDialog = (user) => {
+                    isEditMode.value = true;
+                    userForm.id = user.id;
+                    userForm.username = user.username;
+                    userForm.realName = user.real_name;
+                    userForm.role = user.role;
+                    userForm.status = user.status;
+                    userForm.units = getUserUnits(user.id);
+                    dialogVisible.value = true;
+                };
+
+                const resetForm = () => {
+                    userForm.id = null;
+                    userForm.username = '';
+                    userForm.password = '';
+                    userForm.realName = '';
+                    userForm.role = 'user';
+                    userForm.status = 1;
+                    userForm.units = [];
+                    if (userFormRef.value) {
+                        userFormRef.value.clearValidate();
+                    }
+                };
+
+                const handleSubmit = async () => {
+                    if (!userFormRef.value) return;
+                    
+                    try {
+                        const valid = await userFormRef.value.validate();
+                        if (!valid) return;
+
+                        submitting.value = true;
+
+                        if (isEditMode.value) {
+                            await updateUser();
+                        } else {
+                            await createUser();
+                        }
+
+                        dialogVisible.value = false;
+                        await loadUsers();
+                        ElementPlus.ElMessage.success(isEditMode.value ? '用户更新成功' : '用户创建成功');
+                    } catch (error) {
+                        console.error('提交失败:', error);
+                        ElementPlus.ElMessage.error('操作失败: ' + error.message);
+                    } finally {
+                        submitting.value = false;
+                    }
+                };
+
+                const createUser = async () => {
+                    const passwordHash = dcodeIO.bcrypt.hashSync(userForm.password, 10);
+
+                    const { data: userData, error: userError } = await supabaseClient
+                        .from('users')
+                        .insert({
+                            username: userForm.username,
+                            password: passwordHash,
+                            real_name: userForm.realName,
+                            role: userForm.role,
+                            status: userForm.status
+                        })
+                        .select()
+                        .single();
+
+                    if (userError) throw userError;
+
+                    if (userForm.units.length > 0) {
+                        const unitRecords = userForm.units.map(unit => ({
+                            user_id: userData.id,
+                            unit: unit
+                        }));
+
+                        const { error: unitsError } = await supabaseClient
+                            .from('user_units')
+                            .insert(unitRecords);
+
+                        if (unitsError) throw unitsError;
+                    }
+                };
+
+                const updateUser = async () => {
+                    const { error: userError } = await supabaseClient
+                        .from('users')
+                        .update({
+                            real_name: userForm.realName,
+                            role: userForm.role,
+                            status: userForm.status
+                        })
+                        .eq('id', userForm.id);
+
+                    if (userError) throw userError;
+
+                    const { error: deleteError } = await supabaseClient
+                        .from('user_units')
+                        .delete()
+                        .eq('user_id', userForm.id);
+
+                    if (deleteError) throw deleteError;
+
+                    if (userForm.units.length > 0) {
+                        const unitRecords = userForm.units.map(unit => ({
+                            user_id: userForm.id,
+                            unit: unit
+                        }));
+
+                        const { error: insertError } = await supabaseClient
+                            .from('user_units')
+                            .insert(unitRecords);
+
+                        if (insertError) throw insertError;
+                    }
+                };
+
+                const handleDelete = async (user) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要删除用户 "${user.real_name}" 吗？此操作不可恢复。`,
+                            '确认删除',
+                            {
+                                confirmButtonText: '确定',
+                                cancelButtonText: '取消',
+                                type: 'warning'
+                            }
+                        );
+
+                        loading.value = true;
+
+                        const { data: transferRecords, error: checkError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('id')
+                            .eq('operator_id', user.id);
+
+                        if (checkError) throw checkError;
+
+                        if (transferRecords && transferRecords.length > 0) {
+                            await ElementPlus.ElMessageBox.confirm(
+                                `该用户有 ${transferRecords.length} 条货权转让记录。删除用户后，这些记录的操作人信息将被清空。是否继续？`,
+                                '确认删除',
+                                {
+                                    confirmButtonText: '继续删除',
+                                    cancelButtonText: '取消',
+                                    type: 'warning'
+                                }
+                            );
+
+                            const { error: updateError } = await supabaseClient
+                                .from('inventory_transfer')
+                                .update({ 
+                                    operator_id: null,
+                                    operator_name: null
+                                })
+                                .eq('operator_id', user.id);
+
+                            if (updateError) throw updateError;
+                        }
+
+                        const { error } = await supabaseClient
+                            .from('users')
+                            .delete()
+                            .eq('id', user.id);
+
+                        if (error) throw error;
+
+                        await loadUsers();
+                        ElementPlus.ElMessage.success('用户删除成功');
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            console.error('删除用户失败:', error);
+                            ElementPlus.ElMessage.error('删除用户失败');
+                        }
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const handleSearch = () => {
+                };
+
+                const handleTransferSearch = () => {
+                };
+
+                const formatDateTime = (dateStr) => {
+                    if (!dateStr) return '';
+                    let date;
+                    if (typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                        date = new Date(dateStr + 'Z');
+                    } else {
+                        date = new Date(dateStr);
+                    }
+                    return date.toLocaleString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                };
+
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return '-';
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                };
+
+                const loadTransferData = async () => {
+                    transferLoading.value = true;
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select(`
+                                *,
+                                inventory:inventory_id (
+                                    batch_no,
+                                    material,
+                                    specification,
+                                    weight,
+                                    storage_location,
+                                    in_date,
+                                    status
+                                )
+                            `)
+                            .order('transfer_date', { ascending: false });
+
+                        if (error) throw error;
+                        transferData.value = data || [];
+                    } catch (error) {
+                        console.error('加载转让数据失败:', error);
+                        ElementPlus.ElMessage.error('加载转让数据失败');
+                    } finally {
+                        transferLoading.value = false;
+                    }
+                };
+
+                const refreshTransferData = () => {
+                    loadTransferData();
+                };
+
+                const viewTransferDetail = async (row) => {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select(`
+                                *,
+                                inventory:inventory_id (
+                                    batch_no,
+                                    material,
+                                    specification,
+                                    weight,
+                                    storage_location,
+                                    in_date,
+                                    status
+                                )
+                            `)
+                            .eq('id', row.id)
+                            .single();
+
+                        if (error) throw error;
+
+                        const { data: transferHistory, error: historyError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('*')
+                            .eq('inventory_id', data.inventory_id)
+                            .order('transfer_date', { ascending: false });
+
+                        if (historyError) throw historyError;
+
+                        Object.assign(transferDetail, {
+                            id: data.id,
+                            batch_no: data.batch_no,
+                            from_unit: data.from_unit,
+                            to_unit: data.to_unit,
+                            transfer_reason: data.transfer_reason,
+                            operator_name: data.operator_name,
+                            transfer_date: data.transfer_date,
+                            status: data.status,
+                            inventory: data.inventory,
+                            transferHistory: transferHistory || []
+                        });
+
+                        transferDetailDialogVisible.value = true;
+                    } catch (error) {
+                        console.error('加载转让详情失败:', error);
+                        ElementPlus.ElMessage.error('加载转让详情失败');
+                    }
+                };
+
+                const resetTransferDetail = () => {
+                    Object.assign(transferDetail, {
+                        id: null,
+                        batch_no: '',
+                        from_unit: '',
+                        to_unit: '',
+                        transfer_reason: '',
+                        operator_name: '',
+                        transfer_date: '',
+                        status: 1,
+                        inventory: null,
+                        transferHistory: []
+                    });
+                };
+
+                const handleCancelTransfer = async (row) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要取消此转让记录吗？此操作将把货物恢复到原单位（${row.from_unit}）。`,
+                            '确认取消',
+                            {
+                                confirmButtonText: '确定',
+                                cancelButtonText: '取消',
+                                type: 'warning'
+                            }
+                        );
+
+                        const { error: updateError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .update({ 
+                                status: 2,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', row.id);
+
+                        if (updateError) throw updateError;
+
+                        const { error: inventoryError } = await supabaseClient
+                            .from('inventory')
+                            .update({ 
+                                unit: row.from_unit,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', row.inventory_id);
+
+                        if (inventoryError) throw inventoryError;
+
+                        await loadTransferData();
+                        ElementPlus.ElMessage.success('转让记录已取消，货物已恢复到原单位');
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            console.error('取消转让失败:', error);
+                            ElementPlus.ElMessage.error('取消转让失败');
+                        }
+                    }
+                };
+
+                const handleDeleteTransfer = async (row) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要删除此转让记录吗？批号：${row.batch_no}，转让单位：${row.from_unit} → ${row.to_unit}。此操作不可恢复。`,
+                            '确认删除',
+                            {
+                                confirmButtonText: '确定',
+                                cancelButtonText: '取消',
+                                type: 'warning'
+                            }
+                        );
+
+                        loading.value = true;
+
+                        const { error } = await supabaseClient
+                            .from('inventory_transfer')
+                            .delete()
+                            .eq('id', row.id);
+
+                        if (error) throw error;
+
+                        await loadTransferData();
+                        ElementPlus.ElMessage.success('转让记录已删除');
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            console.error('删除转让记录失败:', error);
+                            ElementPlus.ElMessage.error('删除转让记录失败');
+                        }
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const exportTransferData = () => {
+                    const data = filteredTransfer.value.map(item => ({
+                        '转让ID': item.id,
+                        '批号': item.batch_no,
+                        '转让单位': item.from_unit,
+                        '接收单位': item.to_unit,
+                        '转让原因': item.transfer_reason || '',
+                        '操作人': item.operator_name,
+                        '转让时间': formatDateTime(item.transfer_date),
+                        '状态': item.status === 1 ? '已完成' : '已取消'
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '货权转让');
+                    XLSX.writeFile(wb, `货权转让_${new Date().toLocaleDateString('zh-CN')}.xlsx`);
+                };
+
+                const handleLogout = () => {
+                    localStorage.removeItem('currentUser');
+                    window.location.href = 'login.html';
+                };
+
+                onMounted(() => {
+                    if (checkAuth()) {
+                        loadUsers();
+                        loadTransferData();
+                    }
+                });
+
+                return {
+                    currentUser,
+                    loading,
+                    submitting,
+                    dialogVisible,
+                    isEditMode,
+                    searchQuery,
+                    activeTab,
+                    users,
+                    filteredUsers,
+                    userForm,
+                    formRules,
+                    userFormRef,
+                    availableUnits,
+                    userUnitsMap,
+                    getUserUnits,
+                    openCreateDialog,
+                    openEditDialog,
+                    resetForm,
+                    handleSubmit,
+                    handleDelete,
+                    handleSearch,
+                    handleTransferSearch,
+                    formatDateTime,
+                    formatDate,
+                    handleLogout,
+                    loadUsers,
+                    transferLoading,
+                    transferSearchQuery,
+                    transferData,
+                    filteredTransfer,
+                    transferDetailDialogVisible,
+                    transferDetail,
+                    loadTransferData,
+                    refreshTransferData,
+                    viewTransferDetail,
+                    resetTransferDetail,
+                    handleCancelTransfer,
+                    handleDeleteTransfer,
+                    exportTransferData
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>

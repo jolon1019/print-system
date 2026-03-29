@@ -222,11 +222,11 @@ function generatePrintTemplate(data) {
       // 替换模板中的占位符
       template = template.replace(/\{\{title\}\}/g, data.title || '出库单')
                        .replace(/\{\{outNo\}\}/g, data.outNo || data.orderNo || 'N/A')
-                       .replace(/\{\{outDate\}\}/g, data.outDate || data.date || new Date().toLocaleDateString('zh-CN'))
+                       .replace(/\{\{outDate\}\}/g, data.outDate || data.date || new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }))
                        .replace(/\{\{unit\}\}/g, data.unit || 'N/A')
                        .replace(/\{\{vehicleNo\}\}/g, data.vehicleNo || '')
                        .replace(/\{\{remark\}\}/g, data.remark || '无')
-                       .replace(/\{\{printTime\}\}/g, data.printTime || new Date().toLocaleString('zh-CN'))
+                       .replace(/\{\{printTime\}\}/g, data.printTime || new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))
                        .replace(/\{\{totalAmount\}\}/g, totalAmountDisplay)
                        .replace(/\{\{totalWeight\}\}/g, totalWeightDisplay);      
       // 生成表格内容
