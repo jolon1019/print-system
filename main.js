@@ -38,7 +38,9 @@ function createWindow() {
     minHeight: 600,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
+      webSecurity: false,
+      allowRunningInsecureContent: true
     },
     icon: path.join(__dirname, 'icon.png'),
     title: '热卷打印管理系统'
@@ -62,6 +64,9 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+app.commandLine.appendSwitch('ignore-certificate-errors');
+app.commandLine.appendSwitch('allow-insecure-localhost');
 
 app.whenReady().then(() => {
   createWindow();
@@ -334,7 +339,9 @@ ipcMain.on('open-kucu-system', () => {
     minHeight: 600,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
+      webSecurity: false,
+      allowRunningInsecureContent: true
     },
     icon: path.join(__dirname, 'icon.png'),
     title: '热卷出入库管理系统'

@@ -168,6 +168,45 @@
             justify-content: flex-end;
             gap: 10px;
         }
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #409EFF;
+        }
+        .stat-value.total {
+            color: #67c23a;
+        }
+        .stat-value.weight {
+            color: #e6a23c;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
         .form-tip {
             font-size: 12px;
             color: #909399;
@@ -206,8 +245,14 @@
     <div id="app">
         <div class="app-container">
             <div class="header">
-                <h1>热卷管理系统 - 系统管理</h1>
+                <h1>召龙热卷管理系统 - 系统管理</h1>
                 <div class="header-info">
+                    <button class="logout-btn" @click="goToIndex" style="background: rgba(33, 150, 243, 0.8);">
+                        🏠 首页
+                    </button>
+                    <button class="logout-btn" @click="openKucuSystem" style="background: rgba(76, 175, 80, 0.8);">
+                        📦 库存系统
+                    </button>
                     <div class="user-info" v-if="currentUser">
                         <div class="user-avatar">
                             {{ currentUser.realName?.charAt(0) || '?' }}
@@ -217,9 +262,14 @@
                             <span class="user-role">角色: {{ currentUser.role === 'admin' ? '管理员' : '普通用户' }}</span>
                         </div>
                     </div>
-                    <button class="logout-btn" @click="handleLogout" v-if="currentUser">
-                        退出登录
-                    </button>
+                    <div class="header-actions" v-if="currentUser">
+                        <button class="action-btn" @click="openChangePasswordDialog">
+                            修改密码
+                        </button>
+                        <button class="logout-btn" @click="handleLogout">
+                            退出登录
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -229,6 +279,154 @@
                 </div>
 
                 <el-tabs v-model="activeTab" class="tabs">
+                    <el-tab-pane label="库存信息" name="inventory">
+                        <div class="card">
+                            <div class="statistics">
+                                <div class="stat-card">
+                                    <span class="stat-label">总数</span>
+                                    <span class="stat-value">{{ inventoryStats.totalBatches }}</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">总重量(吨)</span>
+                                    <span class="stat-value weight">{{ inventoryStats.totalWeight }}</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">在库数</span>
+                                    <span class="stat-value total">{{ inventoryStats.inStock }}</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">已出库数</span>
+                                    <span class="stat-value">{{ inventoryStats.outStock }}</span>
+                                </div>
+                            </div>
+
+                            <div class="table-toolbar">
+                                <div class="search-box">
+                                    <el-input
+                                        v-model="searchQueryInventory"
+                                        placeholder="搜索批号、材质、规格..."
+                                        clearable
+                                        @input="handleSearchInventory"
+                                    >
+                                        <template #prefix>
+                                            <i class="el-icon-search"></i>
+                                        </template>
+                                    </el-input>
+                                </div>
+                                <div class="action-buttons">
+                                    <el-button-group>
+                                        <el-button 
+                                            :type="inventoryStatusFilter === 'all' ? 'primary' : ''"
+                                            @click="inventoryStatusFilter = 'all'"
+                                        >
+                                            全部库存
+                                        </el-button>
+                                        <el-button 
+                                            :type="inventoryStatusFilter === 'in_stock' ? 'primary' : ''"
+                                            @click="inventoryStatusFilter = 'in_stock'"
+                                        >
+                                            在库库存
+                                        </el-button>
+                                    </el-button-group>
+                                    <el-button type="success" @click="batchList" :disabled="selectedInventory.length === 0">
+                                        批量上架 ({{ selectedInventory.length }})
+                                    </el-button>
+                                    <el-button type="danger" @click="batchUnlist" :disabled="selectedInventory.length === 0">
+                                        批量下架 ({{ selectedInventory.length }})
+                                    </el-button>
+                                    <el-button type="primary" @click="exportInventoryData">
+                                        导出库存
+                                    </el-button>
+                                    <el-button @click="loadInventoryData">
+                                        刷新
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <el-table 
+                                :data="filteredInventory" 
+                                v-loading="loading"
+                                stripe
+                                border
+                                style="width: 100%"
+                                @selection-change="handleSelectionChange"
+                            >
+                                <el-table-column type="selection" width="55" fixed></el-table-column>
+                                <el-table-column prop="batch_no" label="批号" min-width="120"></el-table-column>
+                                <el-table-column prop="unit" label="单位" min-width="100"></el-table-column>
+                                <el-table-column prop="material" label="材质" min-width="100"></el-table-column>
+                                <el-table-column prop="specification" label="规格" min-width="200"></el-table-column>
+                                <el-table-column prop="weight" label="重量(吨)" min-width="100" align="right"></el-table-column>
+                                <el-table-column prop="vehicle_no" label="车号" min-width="100"></el-table-column>
+                                <el-table-column prop="storage_location" label="库位" min-width="100"></el-table-column>
+                                <el-table-column prop="in_date" label="入库日期" min-width="120">
+                                    <template #default="{ row }">
+                                        {{ formatDate(row.in_date) }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="status" label="状态" min-width="80">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.status === 1 ? 'success' : 'info'">
+                                            {{ row.status === 1 ? '在库' : '已出库' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="上架状态" min-width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.is_listed ? 'warning' : 'info'" size="small">
+                                            {{ row.is_listed ? '已上架' : '未上架' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="货权转移" min-width="150">
+                                    <template #default="{ row }">
+                                        <div v-if="row.lastTransfer">
+                                            <div style="font-size: 12px; color: #666;">
+                                                {{ formatDateTime(row.lastTransfer.transfer_date) }}
+                                            </div>
+                                            <div style="font-size: 11px; color: #999; margin-top: 2px;">
+                                                {{ row.lastTransfer.from_unit }} → {{ row.lastTransfer.to_unit }}
+                                            </div>
+                                        </div>
+                                        <span v-else style="color: #999; font-size: 12px;">无转移记录</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="320" fixed="right">
+                                    <template #default="{ row }">
+                                        <el-button 
+                                            type="info" 
+                                            size="small" 
+                                            @click="viewInventoryDetail(row)"
+                                        >
+                                            详情
+                                        </el-button>
+                                        <el-button 
+                                            type="primary" 
+                                            size="small" 
+                                            @click="openTransferDialog(row)"
+                                            :disabled="row.status !== 1"
+                                        >
+                                            转让
+                                        </el-button>
+                                        <el-button 
+                                            :type="row.is_listed ? 'danger' : 'success'" 
+                                            size="small" 
+                                            @click="toggleListed(row)"
+                                            :disabled="row.status !== 1"
+                                        >
+                                            {{ row.is_listed ? '下架' : '上架' }}
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <div v-if="filteredInventory.length === 0 && !loading" class="empty-state">
+                                <div class="empty-state-icon">📦</div>
+                                <p>暂无数据</p>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+
                     <el-tab-pane label="用户管理" name="users">
                         <div class="card">
                             <div class="table-toolbar">
@@ -275,6 +473,13 @@
                                     <template #default="{ row }">
                                         <el-tag :type="row.status === 1 ? 'success' : 'info'">
                                             {{ row.status === 1 ? '启用' : '禁用' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="can_transfer" label="货权转让" width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.can_transfer ? 'success' : 'danger'">
+                                            {{ row.can_transfer ? '允许' : '禁止' }}
                                         </el-tag>
                                     </template>
                                 </el-table-column>
@@ -463,6 +668,17 @@
                     ></el-switch>
                 </el-form-item>
 
+                <el-form-item label="货权转让" prop="canTransfer">
+                    <el-switch
+                        v-model="userForm.canTransfer"
+                        active-text="允许"
+                        inactive-text="禁止"
+                        :active-value="true"
+                        :inactive-value="false"
+                    ></el-switch>
+                    <div class="form-tip">设置用户是否可以进行货权转让操作</div>
+                </el-form-item>
+
                 <el-form-item label="绑定单位" prop="units">
                     <el-select
                         v-model="userForm.units"
@@ -567,10 +783,162 @@
                 </div>
             </template>
         </el-dialog>
+
+        <el-dialog
+            v-model="transferDialogVisible"
+            title="货权转让"
+            width="500px"
+            @close="resetTransferForm"
+        >
+            <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
+                <el-form-item label="批号">
+                    <el-input v-model="transferForm.batchNo" disabled></el-input>
+                </el-form-item>
+
+                <el-form-item label="当前单位">
+                    <el-input v-model="transferForm.fromUnit" disabled></el-input>
+                </el-form-item>
+
+                <el-form-item label="接收单位" prop="toUnit">
+                    <el-input
+                        v-model="transferForm.toUnit"
+                        placeholder="请输入接收单位"
+                        clearable
+                    ></el-input>
+                </el-form-item>
+
+                <el-form-item label="转让原因" prop="transferReason">
+                    <el-input
+                        v-model="transferForm.transferReason"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="请输入转让原因"
+                    ></el-input>
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="transferDialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="handleTransfer" :loading="transferring">
+                        确认转让
+                    </el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="inventoryDetailDialogVisible"
+            title="库存详情"
+            width="700px"
+            @close="resetInventoryDetail"
+        >
+            <el-descriptions :column="2" border>
+                <el-descriptions-item label="批号" :span="2">{{ inventoryDetail.batch_no }}</el-descriptions-item>
+                <el-descriptions-item label="当前单位">{{ inventoryDetail.unit }}</el-descriptions-item>
+                <el-descriptions-item label="状态">
+                    <el-tag :type="inventoryDetail.status === 1 ? 'success' : 'info'">
+                        {{ inventoryDetail.status === 1 ? '在库' : '已出库' }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="材质">{{ inventoryDetail.material }}</el-descriptions-item>
+                <el-descriptions-item label="规格">{{ inventoryDetail.specification }}</el-descriptions-item>
+                <el-descriptions-item label="重量">{{ inventoryDetail.weight }} 吨</el-descriptions-item>
+                <el-descriptions-item label="库位">{{ inventoryDetail.storage_location }}</el-descriptions-item>
+                <el-descriptions-item label="车号">{{ inventoryDetail.vehicle_no || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="入库日期">{{ formatDate(inventoryDetail.in_date) }}</el-descriptions-item>
+            </el-descriptions>
+
+            <div style="margin-top: 20px;">
+                <h4 style="margin-bottom: 10px;">货权转移历史</h4>
+                <el-table 
+                    :data="inventoryDetail.transferHistory" 
+                    stripe
+                    border
+                    size="small"
+                    style="width: 100%"
+                    max-height="300"
+                >
+                    <el-table-column prop="transfer_date" label="转移时间" width="160">
+                        <template #default="{ row }">
+                            {{ formatDateTime(row.transfer_date) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="from_unit" label="转让单位" width="120"></el-table-column>
+                    <el-table-column prop="to_unit" label="接收单位" width="120"></el-table-column>
+                    <el-table-column prop="transfer_reason" label="转让原因" min-width="150"></el-table-column>
+                    <el-table-column prop="operator_name" label="操作人" width="100"></el-table-column>
+                    <el-table-column prop="remark" label="备注" min-width="150"></el-table-column>
+                    <el-table-column prop="status" label="状态" width="80">
+                        <template #default="{ row }">
+                            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+                                {{ row.status === 1 ? '已完成' : '已取消' }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div v-if="!inventoryDetail.transferHistory || inventoryDetail.transferHistory.length === 0" style="text-align: center; padding: 20px; color: #999;">
+                    暂无转移记录
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="inventoryDetailDialogVisible = false">关闭</el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="changePasswordDialogVisible"
+            title="修改密码"
+            width="400px"
+            @close="resetPasswordForm"
+        >
+            <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="100px">
+                <el-form-item label="原密码" prop="oldPassword">
+                    <el-input 
+                        v-model="passwordForm.oldPassword" 
+                        type="password" 
+                        placeholder="请输入原密码"
+                        show-password
+                    ></el-input>
+                </el-form-item>
+
+                <el-form-item label="新密码" prop="newPassword">
+                    <el-input 
+                        v-model="passwordForm.newPassword" 
+                        type="password" 
+                        placeholder="请输入新密码"
+                        show-password
+                    ></el-input>
+                    <div class="form-tip">密码长度至少6位</div>
+                </el-form-item>
+
+                <el-form-item label="确认密码" prop="confirmPassword">
+                    <el-input 
+                        v-model="passwordForm.confirmPassword" 
+                        type="password" 
+                        placeholder="请再次输入新密码"
+                        show-password
+                    ></el-input>
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="changePasswordDialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="handleChangePassword" :loading="changingPassword">
+                        确定
+                    </el-button>
+                </div>
+            </template>
+        </el-dialog>
     </div>
 
     <script>
-        const { createApp, ref, reactive, computed, onMounted } = Vue;
+        const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
 
         const app = createApp({
             setup() {
@@ -585,7 +953,10 @@
                 const dialogVisible = ref(false);
                 const isEditMode = ref(false);
                 const searchQuery = ref('');
-                const activeTab = ref('users');
+                const activeTab = ref('inventory');
+                const changePasswordDialogVisible = ref(false);
+                const changingPassword = ref(false);
+                const passwordFormRef = ref(null);
                 const users = ref([]);
                 const userUnits = ref([]);
                 const availableUnits = ref([]);
@@ -608,6 +979,62 @@
                     transferHistory: []
                 });
 
+                const searchQueryInventory = ref('');
+                const inventoryStatusFilter = ref('all');
+                const inventoryData = ref([]);
+                const selectedInventory = ref([]);
+                const inventoryStats = reactive({
+                    totalBatches: 0,
+                    totalWeight: 0,
+                    inStock: 0,
+                    outStock: 0
+                });
+                const inventoryDetailDialogVisible = ref(false);
+                const inventoryDetail = reactive({
+                    id: null,
+                    batch_no: '',
+                    unit: '',
+                    material: '',
+                    specification: '',
+                    weight: 0,
+                    storage_location: '',
+                    vehicle_no: '',
+                    in_date: '',
+                    status: 1,
+                    transferHistory: []
+                });
+
+                const transferDialogVisible = ref(false);
+                const transferring = ref(false);
+                const transferFormRef = ref(null);
+
+                const transferForm = reactive({
+                    inventoryId: null,
+                    batchNo: '',
+                    fromUnit: '',
+                    toUnit: '',
+                    transferReason: ''
+                });
+
+                const transferRules = {
+                    toUnit: [
+                        { required: true, message: '请输入接收单位', trigger: 'blur' },
+                        {
+                            validator: (rule, value, callback) => {
+                                if (value === transferForm.fromUnit) {
+                                    callback(new Error('不能转让给当前单位'));
+                                } else {
+                                    callback();
+                                }
+                            },
+                            trigger: 'blur'
+                        }
+                    ],
+                    transferReason: [
+                        { required: true, message: '请输入转让原因', trigger: 'blur' }
+                    ]
+                };
+
                 const userForm = reactive({
                     id: null,
                     username: '',
@@ -615,6 +1042,7 @@
                     realName: '',
                     role: 'user',
                     status: 1,
+                    canTransfer: true,
                     units: []
                 });
 
@@ -632,6 +1060,35 @@
                     ],
                     role: [
                         { required: true, message: '请选择角色', trigger: 'change' }
+                    ]
+                };
+
+                const passwordForm = reactive({
+                    oldPassword: '',
+                    newPassword: '',
+                    confirmPassword: ''
+                });
+
+                const passwordRules = {
+                    oldPassword: [
+                        { required: true, message: '请输入原密码', trigger: 'blur' }
+                    ],
+                    newPassword: [
+                        { required: true, message: '请输入新密码', trigger: 'blur' },
+                        { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+                    ],
+                    confirmPassword: [
+                        { required: true, message: '请再次输入新密码', trigger: 'blur' },
+                        {
+                            validator: (rule, value, callback) => {
+                                if (value !== passwordForm.newPassword) {
+                                    callback(new Error('两次输入的密码不一致'));
+                                } else {
+                                    callback();
+                                }
+                            },
+                            trigger: 'blur'
+                        }
                     ]
                 };
 
@@ -654,13 +1111,48 @@
                     );
                 });
 
-                const checkAuth = () => {
+                const filteredInventory = computed(() => {
+                    let result = inventoryData.value;
+                    
+                    if (inventoryStatusFilter.value === 'in_stock') {
+                        result = result.filter(item => item.status === 1);
+                    }
+                    
+                    if (!searchQueryInventory.value) return result;
+                    const query = searchQueryInventory.value.toLowerCase();
+                    return result.filter(item => 
+                        item.batch_no.toLowerCase().includes(query) ||
+                        item.material.toLowerCase().includes(query) ||
+                        item.specification.toLowerCase().includes(query)
+                    );
+                });
+
+                watch(inventoryStatusFilter, () => {
+                    calculateInventoryStats();
+                });
+
+                const checkAuth = async () => {
                     const userStr = localStorage.getItem('currentUser');
                     if (!userStr) {
                         window.location.href = 'login.html';
                         return false;
                     }
                     currentUser.value = JSON.parse(userStr);
+                    
+                    try {
+                        const { data: userData, error: userError } = await supabaseClient
+                            .from('users')
+                            .select('*')
+                            .eq('id', currentUser.value.id)
+                            .maybeSingle();
+                            
+                        if (!userError && userData) {
+                            currentUser.value.canTransfer = userData.can_transfer === true;
+                            localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
+                        }
+                    } catch (error) {
+                        console.error('刷新用户权限失败:', error);
+                    }
                     
                     if (currentUser.value.role !== 'admin') {
                         ElementPlus.ElMessage.error('只有管理员才能访问此页面');
@@ -746,6 +1238,7 @@
                     userForm.realName = user.real_name;
                     userForm.role = user.role;
                     userForm.status = user.status;
+                    userForm.canTransfer = user.can_transfer === true;
                     userForm.units = getUserUnits(user.id);
                     dialogVisible.value = true;
                 };
@@ -757,6 +1250,7 @@
                     userForm.realName = '';
                     userForm.role = 'user';
                     userForm.status = 1;
+                    userForm.canTransfer = true;
                     userForm.units = [];
                     if (userFormRef.value) {
                         userFormRef.value.clearValidate();
@@ -799,7 +1293,8 @@
                             password: passwordHash,
                             real_name: userForm.realName,
                             role: userForm.role,
-                            status: userForm.status
+                            status: userForm.status,
+                            can_transfer: userForm.canTransfer
                         })
                         .select()
                         .single();
@@ -826,7 +1321,8 @@
                         .update({
                             real_name: userForm.realName,
                             role: userForm.role,
-                            status: userForm.status
+                            status: userForm.status,
+                            can_transfer: userForm.canTransfer
                         })
                         .eq('id', userForm.id);
 
@@ -952,6 +1448,381 @@
                     });
                 };
 
+                const loadInventoryData = async () => {
+                    loading.value = true;
+                    try {
+                        const { data: inventory, error: inventoryError } = await supabaseClient
+                            .from('inventory')
+                            .select('*')
+                            .order('in_date', { ascending: false });
+
+                        if (inventoryError) throw inventoryError;
+                        inventoryData.value = inventory || [];
+
+                        await autoUnlistOutOfStock();
+
+                        await loadLastTransfers();
+                        calculateInventoryStats();
+                    } catch (error) {
+                        console.error('加载库存数据失败:', error);
+                        ElementPlus.ElMessage.error('加载库存数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const autoUnlistOutOfStock = async () => {
+                    try {
+                        const outOfStockListed = inventoryData.value.filter(
+                            item => item.status !== 1 && item.is_listed
+                        );
+
+                        if (outOfStockListed.length > 0) {
+                            const ids = outOfStockListed.map(item => item.id);
+                            const { error } = await supabaseClient
+                                .from('inventory')
+                                .update({ 
+                                    is_listed: false,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .in('id', ids);
+
+                            if (error) throw error;
+
+                            inventoryData.value = inventoryData.value.map(item => {
+                                if (outOfStockListed.some(o => o.id === item.id)) {
+                                    return { ...item, is_listed: false };
+                                }
+                                return item;
+                            });
+
+                            ElementPlus.ElMessage.info(`自动下架了 ${outOfStockListed.length} 条已出库的货物`);
+                        }
+                    } catch (error) {
+                        console.error('自动下架失败:', error);
+                    }
+                };
+
+                const loadLastTransfers = async () => {
+                    try {
+                        const inventoryIds = inventoryData.value.map(item => item.id);
+                        if (inventoryIds.length === 0) return;
+
+                        const { data: transfers, error } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('*')
+                            .in('inventory_id', inventoryIds)
+                            .eq('status', 1)
+                            .order('transfer_date', { ascending: false });
+
+                        if (error) throw error;
+
+                        const lastTransferMap = new Map();
+                        transfers?.forEach(transfer => {
+                            if (!lastTransferMap.has(transfer.inventory_id)) {
+                                lastTransferMap.set(transfer.inventory_id, transfer);
+                            }
+                        });
+
+                        inventoryData.value.forEach(item => {
+                            item.lastTransfer = lastTransferMap.get(item.id) || null;
+                        });
+                    } catch (error) {
+                        console.error('加载最新转让记录失败:', error);
+                    }
+                };
+
+                const calculateInventoryStats = () => {
+                    let dataToCalculate = inventoryData.value;
+                    
+                    if (inventoryStatusFilter.value === 'in_stock') {
+                        dataToCalculate = inventoryData.value.filter(item => item.status === 1);
+                    }
+                    
+                    inventoryStats.totalBatches = dataToCalculate.length;
+                    inventoryStats.totalWeight = dataToCalculate.reduce((sum, item) => sum + parseFloat(item.weight), 0).toFixed(3);
+                    inventoryStats.inStock = dataToCalculate.filter(item => item.status === 1).length;
+                    inventoryStats.outStock = dataToCalculate.filter(item => item.status !== 1).length;
+                };
+
+                const handleSearchInventory = () => {
+                };
+
+                const viewInventoryDetail = async (row) => {
+                    try {
+                        const { data: inventory, error: inventoryError } = await supabaseClient
+                            .from('inventory')
+                            .select('*')
+                            .eq('id', row.id)
+                            .single();
+
+                        if (inventoryError) throw inventoryError;
+
+                        const { data: transfers, error: transferError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('*')
+                            .eq('inventory_id', row.id)
+                            .order('transfer_date', { ascending: false });
+
+                        if (transferError) throw transferError;
+
+                        Object.assign(inventoryDetail, {
+                            id: inventory.id,
+                            batch_no: inventory.batch_no,
+                            unit: inventory.unit,
+                            material: inventory.material,
+                            specification: inventory.specification,
+                            weight: inventory.weight,
+                            storage_location: inventory.storage_location,
+                            vehicle_no: inventory.vehicle_no,
+                            in_date: inventory.in_date,
+                            status: inventory.status,
+                            transferHistory: transfers || []
+                        });
+
+                        inventoryDetailDialogVisible.value = true;
+                    } catch (error) {
+                        console.error('加载库存详情失败:', error);
+                        ElementPlus.ElMessage.error('加载库存详情失败');
+                    }
+                };
+
+                const resetInventoryDetail = () => {
+                    Object.assign(inventoryDetail, {
+                        id: null,
+                        batch_no: '',
+                        unit: '',
+                        material: '',
+                        specification: '',
+                        weight: 0,
+                        storage_location: '',
+                        vehicle_no: '',
+                        in_date: '',
+                        status: 1,
+                        transferHistory: []
+                    });
+                };
+
+                const exportInventoryData = () => {
+                    const data = filteredInventory.value.map(item => ({
+                        '批号': item.batch_no,
+                        '单位': item.unit,
+                        '材质': item.material,
+                        '规格': item.specification,
+                        '重量(吨)': item.weight,
+                        '车号': item.vehicle_no || '',
+                        '库位': item.storage_location,
+                        '入库日期': formatDate(item.in_date),
+                        '状态': item.status === 1 ? '在库' : '已出库'
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '库存信息');
+                    XLSX.writeFile(wb, `库存信息_${new Date().toLocaleDateString('zh-CN')}.xlsx`);
+                };
+
+                const openTransferDialog = (row) => {
+                    transferForm.inventoryId = row.id;
+                    transferForm.batchNo = row.batch_no;
+                    transferForm.fromUnit = row.unit;
+                    transferForm.toUnit = '';
+                    transferForm.transferReason = '';
+                    transferDialogVisible.value = true;
+                };
+
+                const resetTransferForm = () => {
+                    transferForm.inventoryId = null;
+                    transferForm.batchNo = '';
+                    transferForm.fromUnit = '';
+                    transferForm.toUnit = '';
+                    transferForm.transferReason = '';
+                    if (transferFormRef.value) {
+                        transferFormRef.value.clearValidate();
+                    }
+                };
+
+                const handleTransfer = async () => {
+                    if (!transferFormRef.value) return;
+                    
+                    try {
+                        const valid = await transferFormRef.value.validate();
+                        if (!valid) return;
+
+                        transferring.value = true;
+
+                        const { error: updateError } = await supabaseClient
+                            .from('inventory')
+                            .update({ 
+                                unit: transferForm.toUnit,
+                                is_listed: false,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', transferForm.inventoryId);
+
+                        if (updateError) throw updateError;
+
+                        const transferRefNo = `TRANSFER-${Date.now()}`;
+
+                        const { error: transferError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .insert({
+                                inventory_id: transferForm.inventoryId,
+                                batch_no: transferForm.batchNo,
+                                from_unit: transferForm.fromUnit,
+                                to_unit: transferForm.toUnit,
+                                transfer_date: new Date().toISOString(),
+                                transfer_reason: transferForm.transferReason,
+                                operator_id: currentUser.value.id,
+                                operator_name: currentUser.value.realName,
+                                status: 1
+                            });
+
+                        if (transferError) throw transferError;
+
+                        await supabaseClient
+                            .from('inventory_transfer')
+                            .update({ transfer_ref: transferRefNo })
+                            .eq('inventory_id', transferForm.inventoryId)
+                            .eq('status', 1);
+
+                        const { data: inventory, error: inventoryError } = await supabaseClient
+                            .from('inventory')
+                            .select('*')
+                            .eq('id', transferForm.inventoryId)
+                            .single();
+
+                        if (inventoryError) throw inventoryError;
+
+                        const { error: outboundError } = await supabaseClient
+                            .from('outbound')
+                            .insert({
+                                inventory_id: transferForm.inventoryId,
+                                batch_no: transferForm.batchNo,
+                                unit: transferForm.fromUnit,
+                                material: inventory.material,
+                                specification: inventory.specification,
+                                stock_weight: parseFloat(inventory.weight),
+                                out_weight: parseFloat(inventory.weight),
+                                unit_price: 0,
+                                total_amount: 0,
+                                out_type: 4,
+                                out_date: new Date().toISOString().split('T')[0],
+                                vehicle_no: inventory.vehicle_no || '',
+                                remark: `${transferForm.fromUnit}货权转让给${transferForm.toUnit}，原因：${transferForm.transferReason}`,
+                                ref_no: transferRefNo,
+                                transfer_ref: transferRefNo
+                            });
+
+                        if (outboundError) throw outboundError;
+
+                        transferDialogVisible.value = false;
+                        resetTransferForm();
+                        ElementPlus.ElMessage.success('货权转让成功，已为原单位创建出库记录');
+                        
+                        await loadInventoryData();
+                    } catch (error) {
+                        console.error('货权转让失败:', error);
+                        ElementPlus.ElMessage.error('货权转让失败: ' + error.message);
+                    } finally {
+                        transferring.value = false;
+                    }
+                };
+
+                const handleSelectionChange = (selection) => {
+                    selectedInventory.value = selection;
+                };
+
+                const batchList = async () => {
+                    if (selectedInventory.value.length === 0) {
+                        ElementPlus.ElMessage.warning('请先选择要上架的货物');
+                        return;
+                    }
+
+                    const validItems = selectedInventory.value.filter(item => item.status === 1);
+                    if (validItems.length === 0) {
+                        ElementPlus.ElMessage.warning('选择的货物已全部出库，无法上架');
+                        return;
+                    }
+
+                    if (validItems.length < selectedInventory.value.length) {
+                        ElementPlus.ElMessage.warning(`已过滤掉 ${selectedInventory.value.length - validItems.length} 条已出库的货物`);
+                    }
+
+                    try {
+                        const ids = validItems.map(item => item.id);
+                        const { error } = await supabaseClient
+                            .from('inventory')
+                            .update({ 
+                                is_listed: true,
+                                updated_at: new Date().toISOString()
+                            })
+                            .in('id', ids);
+
+                        if (error) throw error;
+
+                        ElementPlus.ElMessage.success(`成功上架 ${validItems.length} 条货物`);
+                        selectedInventory.value = [];
+                        await loadInventoryData();
+                    } catch (error) {
+                        console.error('批量上架失败:', error);
+                        ElementPlus.ElMessage.error('批量上架失败: ' + error.message);
+                    }
+                };
+
+                const batchUnlist = async () => {
+                    if (selectedInventory.value.length === 0) {
+                        ElementPlus.ElMessage.warning('请先选择要下架的货物');
+                        return;
+                    }
+
+                    try {
+                        const ids = selectedInventory.value.map(item => item.id);
+                        const { error } = await supabaseClient
+                            .from('inventory')
+                            .update({ 
+                                is_listed: false,
+                                updated_at: new Date().toISOString()
+                            })
+                            .in('id', ids);
+
+                        if (error) throw error;
+
+                        ElementPlus.ElMessage.success(`成功下架 ${selectedInventory.value.length} 条货物`);
+                        selectedInventory.value = [];
+                        await loadInventoryData();
+                    } catch (error) {
+                        console.error('批量下架失败:', error);
+                        ElementPlus.ElMessage.error('批量下架失败: ' + error.message);
+                    }
+                };
+
+                const toggleListed = async (row) => {
+                    if (row.status !== 1) {
+                        ElementPlus.ElMessage.warning('已出库的货物无法上架');
+                        return;
+                    }
+
+                    try {
+                        const newListedStatus = !row.is_listed;
+                        const { error } = await supabaseClient
+                            .from('inventory')
+                            .update({ 
+                                is_listed: newListedStatus,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', row.id);
+
+                        if (error) throw error;
+
+                        ElementPlus.ElMessage.success(newListedStatus ? '上架成功' : '下架成功');
+                        await loadInventoryData();
+                    } catch (error) {
+                        console.error('操作失败:', error);
+                        ElementPlus.ElMessage.error('操作失败: ' + error.message);
+                    }
+                };
+
                 const loadTransferData = async () => {
                     transferLoading.value = true;
                     try {
@@ -1075,6 +1946,7 @@
                             .from('inventory')
                             .update({ 
                                 unit: row.from_unit,
+                                is_listed: true,
                                 updated_at: new Date().toISOString()
                             })
                             .eq('id', row.inventory_id);
@@ -1094,7 +1966,7 @@
                 const handleDeleteTransfer = async (row) => {
                     try {
                         await ElementPlus.ElMessageBox.confirm(
-                            `确定要删除此转让记录吗？批号：${row.batch_no}，转让单位：${row.from_unit} → ${row.to_unit}。此操作不可恢复。`,
+                            `确定要删除此转让记录吗？批号：${row.batch_no}，转让单位：${row.from_unit} → ${row.to_unit}。此操作将同时删除对应的出库记录，不可恢复。`,
                             '确认删除',
                             {
                                 confirmButtonText: '确定',
@@ -1105,6 +1977,45 @@
 
                         loading.value = true;
 
+                        if (row.transfer_ref) {
+                            const { error: financeError } = await supabaseClient
+                                .from('finance_ledger')
+                                .delete()
+                                .eq('ref_no', row.transfer_ref);
+
+                            if (financeError) console.warn('删除关联财务记录失败:', financeError);
+
+                            const { error: outboundError } = await supabaseClient
+                                .from('outbound')
+                                .delete()
+                                .eq('transfer_ref', row.transfer_ref);
+
+                            if (outboundError) console.warn('删除关联出库记录失败:', outboundError);
+                        } else {
+                            const { data: outboundRecords, error: queryError } = await supabaseClient
+                                .from('outbound')
+                                .select('id, ref_no')
+                                .eq('batch_no', row.batch_no)
+                                .eq('out_type', 4)
+                                .eq('inventory_id', row.inventory_id);
+
+                            if (!queryError && outboundRecords && outboundRecords.length > 0) {
+                                const refNos = outboundRecords.map(r => r.ref_no);
+
+                                await supabaseClient
+                                    .from('finance_ledger')
+                                    .delete()
+                                    .in('ref_no', refNos);
+
+                                const { error: delError } = await supabaseClient
+                                    .from('outbound')
+                                    .delete()
+                                    .in('id', outboundRecords.map(r => r.id));
+
+                                if (delError) console.warn('删除关联出库记录失败:', delError);
+                            }
+                        }
+
                         const { error } = await supabaseClient
                             .from('inventory_transfer')
                             .delete()
@@ -1113,7 +2024,7 @@
                         if (error) throw error;
 
                         await loadTransferData();
-                        ElementPlus.ElMessage.success('转让记录已删除');
+                        ElementPlus.ElMessage.success('转让记录及对应出库记录已删除');
                     } catch (error) {
                         if (error !== 'cancel') {
                             console.error('删除转让记录失败:', error);
@@ -1142,15 +2053,87 @@
                     XLSX.writeFile(wb, `货权转让_${new Date().toLocaleDateString('zh-CN')}.xlsx`);
                 };
 
-                const handleLogout = () => {
-                    localStorage.removeItem('currentUser');
-                    window.location.href = 'login.html';
+                const openChangePasswordDialog = () => {
+                    changePasswordDialogVisible.value = true;
                 };
 
-                onMounted(() => {
-                    if (checkAuth()) {
+                const resetPasswordForm = () => {
+                    passwordForm.oldPassword = '';
+                    passwordForm.newPassword = '';
+                    passwordForm.confirmPassword = '';
+                    if (passwordFormRef.value) {
+                        passwordFormRef.value.clearValidate();
+                    }
+                };
+
+                const handleChangePassword = async () => {
+                    if (!passwordFormRef.value) return;
+                    
+                    try {
+                        const valid = await passwordFormRef.value.validate();
+                        if (!valid) return;
+
+                        changingPassword.value = true;
+
+                        const { data: userData, error: userError } = await supabaseClient
+                            .from('users')
+                            .select('*')
+                            .eq('id', currentUser.value.id)
+                            .single();
+
+                        if (userError || !userData) {
+                            ElementPlus.ElMessage.error('获取用户信息失败');
+                            return;
+                        }
+
+                        const passwordHash = dcodeIO.bcrypt.hashSync(passwordForm.newPassword, 10);
+
+                        const { error: updateError } = await supabaseClient
+                            .from('users')
+                            .update({ password: passwordHash })
+                            .eq('id', currentUser.value.id);
+
+                        if (updateError) throw updateError;
+
+                        changePasswordDialogVisible.value = false;
+                        resetPasswordForm();
+                        ElementPlus.ElMessage.success('密码修改成功');
+                    } catch (error) {
+                        console.error('修改密码失败:', error);
+                        ElementPlus.ElMessage.error('修改密码失败: ' + error.message);
+                    } finally {
+                        changingPassword.value = false;
+                    }
+                };
+
+                const handleLogout = () => {
+                    localStorage.removeItem('currentUser');
+                    window.location.href = 'index.html';
+                };
+
+                const openKucuSystem = () => {
+                    if (typeof require !== 'undefined' && typeof window !== 'undefined') {
+                        try {
+                            const { ipcRenderer } = require('electron');
+                            ipcRenderer.send('open-kucu-system');
+                        } catch (error) {
+                            console.error('Electron IPC 调用失败:', error);
+                            window.location.href = 'main.html';
+                        }
+                    } else {
+                        window.location.href = 'main.html';
+                    }
+                };
+
+                const goToIndex = () => {
+                    window.location.href = 'index.html';
+                };
+
+                onMounted(async () => {
+                    if (await checkAuth()) {
                         loadUsers();
                         loadTransferData();
+                        loadInventoryData();
                     }
                 });
 
@@ -1180,6 +2163,16 @@
                     formatDateTime,
                     formatDate,
                     handleLogout,
+                    changePasswordDialogVisible,
+                    changingPassword,
+                    passwordForm,
+                    passwordRules,
+                    passwordFormRef,
+                    openChangePasswordDialog,
+                    resetPasswordForm,
+                    handleChangePassword,
+                    openKucuSystem,
+                    goToIndex,
                     loadUsers,
                     transferLoading,
                     transferSearchQuery,
@@ -1193,7 +2186,33 @@
                     resetTransferDetail,
                     handleCancelTransfer,
                     handleDeleteTransfer,
-                    exportTransferData
+                    exportTransferData,
+                    searchQueryInventory,
+                    inventoryStatusFilter,
+                    inventoryData,
+                    selectedInventory,
+                    filteredInventory,
+                    inventoryStats,
+                    loadInventoryData,
+                    calculateInventoryStats,
+                    handleSearchInventory,
+                    viewInventoryDetail,
+                    inventoryDetailDialogVisible,
+                    inventoryDetail,
+                    resetInventoryDetail,
+                    exportInventoryData,
+                    transferDialogVisible,
+                    transferring,
+                    transferForm,
+                    transferRules,
+                    transferFormRef,
+                    openTransferDialog,
+                    resetTransferForm,
+                    handleTransfer,
+                    toggleListed,
+                    handleSelectionChange,
+                    batchList,
+                    batchUnlist
                 };
             }
         });

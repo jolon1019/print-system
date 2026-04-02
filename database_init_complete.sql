@@ -1,6 +1,6 @@
 -- =============================================
 -- 热卷打印管理系统 - 完整数据库初始化脚本
--- 整合时间: 2026-03-29
+-- 整合时间: 2026-03-30
 -- 目标数据库: PostgreSQL / Supabase
 -- 说明: 此脚本整合了系统所有需要的数据库表结构
 -- =============================================
@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   real_name VARCHAR(50) NOT NULL,
   role VARCHAR(20) NOT NULL DEFAULT 'user',
   status SMALLINT NOT NULL DEFAULT 1,
+  can_transfer BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -44,6 +45,7 @@ COMMENT ON COLUMN public.users.password IS '密码（bcrypt加密）';
 COMMENT ON COLUMN public.users.real_name IS '真实姓名';
 COMMENT ON COLUMN public.users.role IS '角色：admin-管理员，user-普通用户';
 COMMENT ON COLUMN public.users.status IS '状态：1-启用，0-禁用';
+COMMENT ON COLUMN public.users.can_transfer IS '货权转让权限：true-可转让，false-不可转让';
 
 COMMENT ON TABLE public.user_units IS '用户单位绑定表';
 COMMENT ON COLUMN public.user_units.id IS '绑定ID';
@@ -77,6 +79,9 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     in_date DATE NOT NULL,
     status SMALLINT DEFAULT 1,
     remark TEXT,
+    transfer_ref TEXT,
+    original_inventory_id BIGINT,
+    is_listed BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -88,6 +93,9 @@ CREATE INDEX IF NOT EXISTS idx_inventory_specification ON public.inventory(speci
 CREATE INDEX IF NOT EXISTS idx_inventory_in_date ON public.inventory(in_date);
 CREATE INDEX IF NOT EXISTS idx_inventory_status ON public.inventory(status);
 CREATE INDEX IF NOT EXISTS idx_inventory_storage_location ON public.inventory(storage_location);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfer_ref ON public.inventory(transfer_ref);
+CREATE INDEX IF NOT EXISTS idx_inventory_original_id ON public.inventory(original_inventory_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_is_listed ON public.inventory(is_listed);
 
 -- 库存表注释
 COMMENT ON TABLE public.inventory IS '库存主表';
@@ -104,6 +112,9 @@ COMMENT ON COLUMN public.inventory.storage_location IS '存储位置';
 COMMENT ON COLUMN public.inventory.in_date IS '入库日期';
 COMMENT ON COLUMN public.inventory.status IS '状态：1-在库 2-已出库 3-冻结';
 COMMENT ON COLUMN public.inventory.remark IS '备注信息';
+COMMENT ON COLUMN public.inventory.transfer_ref IS '货权转让关联单号';
+COMMENT ON COLUMN public.inventory.original_inventory_id IS '原始库存ID（货权转让来源）';
+COMMENT ON COLUMN public.inventory.is_listed IS '是否上架到小程序：true-已上架，false-未上架';
 
 -- 出库表 (outbound)
 CREATE TABLE IF NOT EXISTS public.outbound (
@@ -122,6 +133,7 @@ CREATE TABLE IF NOT EXISTS public.outbound (
     remark TEXT,
     ref_no TEXT,
     unit VARCHAR(50),
+    transfer_ref TEXT,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     CONSTRAINT fk_outbound_inventory FOREIGN KEY (inventory_id) REFERENCES inventory(id) ON UPDATE CASCADE ON DELETE RESTRICT
@@ -135,6 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_outbound_out_type ON public.outbound(out_type);
 CREATE INDEX IF NOT EXISTS idx_outbound_material ON public.outbound(material);
 CREATE INDEX IF NOT EXISTS idx_outbound_ref_no ON public.outbound(ref_no);
 CREATE INDEX IF NOT EXISTS idx_outbound_unit ON public.outbound(unit);
+CREATE INDEX IF NOT EXISTS idx_outbound_transfer_ref ON public.outbound(transfer_ref);
 
 -- 出库表注释
 COMMENT ON TABLE public.outbound IS '出库记录表';
@@ -153,6 +166,33 @@ COMMENT ON COLUMN public.outbound.vehicle_no IS '出库车牌号';
 COMMENT ON COLUMN public.outbound.remark IS '出库备注';
 COMMENT ON COLUMN public.outbound.ref_no IS '出库单号，格式：OUTYYYYMMDDXXX';
 COMMENT ON COLUMN public.outbound.unit IS '出库时的单位（对于货权转让，记录原单位）';
+COMMENT ON COLUMN public.outbound.transfer_ref IS '货权转让关联单号';
+
+-- 出库类型配置表 (outbound_types)
+CREATE TABLE IF NOT EXISTS public.outbound_types (
+    id BIGSERIAL PRIMARY KEY,
+    type_code SMALLINT NOT NULL UNIQUE,
+    type_name VARCHAR(50) NOT NULL,
+    tag_type VARCHAR(20) DEFAULT 'info',
+    sort_order SMALLINT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE public.outbound_types IS '出库类型配置表';
+COMMENT ON COLUMN public.outbound_types.type_code IS '类型编码：1-加工，2-装卷，3-销售等';
+COMMENT ON COLUMN public.outbound_types.type_name IS '类型显示名称';
+COMMENT ON COLUMN public.outbound_types.tag_type IS 'Element Plus Tag类型：success/primary/info/warning/danger';
+COMMENT ON COLUMN public.outbound_types.sort_order IS '排序顺序，越小越靠前';
+COMMENT ON COLUMN public.outbound_types.is_active IS '是否启用';
+
+-- 出库类型初始数据
+INSERT INTO public.outbound_types (type_code, type_name, tag_type, sort_order, is_active) VALUES
+    (1, '加工', 'success', 1, TRUE),
+    (2, '装卷', 'primary', 2, TRUE),
+    (3, '销售', 'info', 3, TRUE),
+    (4, '货权转让', 'warning', 4, TRUE)
+ON CONFLICT (type_code) DO NOTHING;
 
 -- 团队备注表 (team_notes)
 CREATE TABLE IF NOT EXISTS public.team_notes (
@@ -386,6 +426,8 @@ CREATE TABLE IF NOT EXISTS public.inventory_transfer (
   operator_name VARCHAR(50),
   status SMALLINT NOT NULL DEFAULT 1,
   remark TEXT,
+  new_inventory_id BIGINT,
+  transfer_ref TEXT,
   created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -398,6 +440,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_transfer_to_unit ON public.inventory_tr
 CREATE INDEX IF NOT EXISTS idx_inventory_transfer_transfer_date ON public.inventory_transfer(transfer_date);
 CREATE INDEX IF NOT EXISTS idx_inventory_transfer_operator_id ON public.inventory_transfer(operator_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_transfer_status ON public.inventory_transfer(status);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfer_new_id ON public.inventory_transfer(new_inventory_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfer_ref ON public.inventory_transfer(transfer_ref);
 
 -- 货权转让表注释
 COMMENT ON TABLE public.inventory_transfer IS '货权转让表';
@@ -412,6 +456,8 @@ COMMENT ON COLUMN public.inventory_transfer.operator_id IS '操作人ID';
 COMMENT ON COLUMN public.inventory_transfer.operator_name IS '操作人姓名';
 COMMENT ON COLUMN public.inventory_transfer.status IS '状态：1-已完成，2-已取消';
 COMMENT ON COLUMN public.inventory_transfer.remark IS '备注';
+COMMENT ON COLUMN public.inventory_transfer.new_inventory_id IS '转让后新建的库存记录ID';
+COMMENT ON COLUMN public.inventory_transfer.transfer_ref IS '货权转让关联单号';
 
 -- =============================================
 -- 第五部分：函数和触发器

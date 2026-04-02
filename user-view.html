@@ -148,6 +148,10 @@
         .search-box .el-input {
             flex: 1;
         }
+        .date-filter-box {
+            display: flex;
+            align-items: center;
+        }
         .action-buttons {
             display: flex;
             gap: 10px;
@@ -263,10 +267,10 @@
     </style>
 </head>
 <body>
-    <div id="app">
+    <div id="app" @click="closeAllOutTypeDropdowns">
         <div class="app-container">
             <div class="header">
-                <h1>热卷管理系统</h1>
+                <h1>召龙热卷管理系统</h1>
                 <div class="header-info">
                     <div class="user-info" v-if="currentUser">
                         <div class="user-avatar">
@@ -328,6 +332,19 @@
                                         </template>
                                     </el-input>
                                 </div>
+                                <div class="date-filter-box">
+                                    <el-date-picker
+                                        v-model="dateRange"
+                                        type="daterange"
+                                        range-separator="至"
+                                        start-placeholder="开始日期"
+                                        end-placeholder="结束日期"
+                                        value-format="YYYY-MM-DD"
+                                        clearable
+                                        @change="handleSearch"
+                                        style="width: 100%"
+                                    ></el-date-picker>
+                                </div>
                                 <div class="action-buttons">
                                     <el-button-group>
                                         <el-button 
@@ -371,16 +388,24 @@
                                         {{ formatDate(row.in_date) }}
                                     </template>
                                 </el-table-column>
-                                <el-table-column prop="status" label="状态" min-width="80">
+                                <el-table-column prop="status" label="状态" min-width="100">
                                     <template #default="{ row }">
-                                        <el-tag :type="row.status === 1 ? 'success' : 'info'">
-                                            {{ row.status === 1 ? '在库' : '已出库' }}
+                                        <el-tag :type="row._transferredOut ? 'warning' : (row.status === 1 ? 'success' : 'info')">
+                                            {{ row._transferredOut ? '货权转让' : (row.status === 1 ? '在库' : '已出库') }}
                                         </el-tag>
                                     </template>
                                 </el-table-column>
                                 <el-table-column label="货权转移" min-width="150">
                                     <template #default="{ row }">
-                                        <div v-if="row.lastTransfer">
+                                        <div v-if="row._transferredOut">
+                                            <div style="font-size: 12px; color: #E6A23C;">
+                                                已转让给 {{ row._transferredTo }}
+                                            </div>
+                                            <div style="font-size: 11px; color: #999; margin-top: 2px;">
+                                                {{ formatDateTime(row._transferDate) }}
+                                            </div>
+                                        </div>
+                                        <div v-else-if="row.lastTransfer">
                                             <div style="font-size: 12px; color: #666;">
                                                 {{ formatDateTime(row.lastTransfer.transfer_date) }}
                                             </div>
@@ -389,6 +414,12 @@
                                             </div>
                                         </div>
                                         <span v-else style="color: #999; font-size: 12px;">无转移记录</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="transfer_ref" label="转让单号" min-width="150">
+                                    <template #default="{ row }">
+                                        <span v-if="row.transfer_ref" style="font-family: monospace; font-size: 12px;">{{ row.transfer_ref }}</span>
+                                        <span v-else>-</span>
                                     </template>
                                 </el-table-column>
                                 <el-table-column label="操作" width="150" fixed="right">
@@ -404,7 +435,7 @@
                                             type="primary" 
                                             size="small" 
                                             @click="openTransferDialog(row)"
-                                            :disabled="row.status !== 1"
+                                            :disabled="row.status !== 1 || !currentUser?.canTransfer || row._transferredOut"
                                         >
                                             转让
                                         </el-button>
@@ -425,7 +456,7 @@
                                 <div class="search-box">
                                     <el-input
                                         v-model="outboundSearchQuery"
-                                        placeholder="搜索批号、车号、材质..."
+                                        placeholder="搜索批号、材质..."
                                         clearable
                                         @input="handleOutboundSearch"
                                     >
@@ -452,15 +483,40 @@
                                 style="width: 100%"
                             >
                                 <el-table-column prop="batch_no" label="批号" min-width="120" fixed></el-table-column>
+                                <el-table-column prop="unit" label="单位" min-width="100"></el-table-column>
                                 <el-table-column prop="material" label="材质" min-width="100"></el-table-column>
                                 <el-table-column prop="specification" label="规格" min-width="200"></el-table-column>
                                 <el-table-column prop="stock_weight" label="重量(吨)" min-width="100" align="right"></el-table-column>
-                                <el-table-column prop="vehicle_no" label="车号" min-width="100"></el-table-column>
-                                <el-table-column prop="out_type" label="出库方式" min-width="100">
+                                <el-table-column prop="out_type" label="出库类型" min-width="100">
                                     <template #default="{ row }">
-                                        <el-tag :type="getOutTypeTagType(row.out_type)" size="small">
-                                            {{ getOutTypeText(row.out_type) }}
-                                        </el-tag>
+                                        <div style="position: relative; display: inline-block;">
+                                            <el-tag 
+                                                :type="getOutTypeTagType(row.out_type)"
+                                                style="cursor: pointer;"
+                                                @click="toggleOutTypeDropdown(row, $event)"
+                                            >
+                                                {{ getOutTypeText(row.out_type) }}
+                                            </el-tag>
+                                            <div 
+                                                v-if="outTypeDropdownVisible[row.outbound_order_id || row.id]"
+                                                style="position: absolute; top: 100%; left: 0; z-index: 2000; margin-top: 4px; background: white; border: 1px solid #e4e7ed; border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); min-width: 100px;"
+                                            >
+                                                <div 
+                                                    v-for="opt in outTypeOptions" 
+                                                    :key="opt.type_code"
+                                                    style="padding: 8px 16px; cursor: pointer; font-size: 13px; white-space: nowrap;"
+                                                    :style="{ 
+                                                        backgroundColor: row.out_type === opt.type_code ? '#ecf5ff' : 'transparent',
+                                                        fontWeight: row.out_type === opt.type_code ? 'bold' : 'normal'
+                                                    }"
+                                                    @click.stop="updateOutType(row, opt.type_code)"
+                                                >
+                                                    <el-tag :type="opt.tag_type" size="small" style="pointer-events: none;">
+                                                        {{ opt.type_name }}
+                                                    </el-tag>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </template>
                                 </el-table-column>
                                 <el-table-column prop="out_date" label="出库日期" min-width="120">
@@ -468,6 +524,8 @@
                                         {{ formatDate(row.out_date) }}
                                     </template>
                                 </el-table-column>
+                                <el-table-column prop="ref_no" label="关联单号" min-width="150"></el-table-column>
+                                <el-table-column prop="remark" label="备注" min-width="200"></el-table-column>
                             </el-table>
 
                             <div v-if="filteredOutbound.length === 0 && !loading" class="empty-state">
@@ -652,6 +710,8 @@
                 <el-descriptions-item label="库位">{{ inventoryDetail.storage_location }}</el-descriptions-item>
                 <el-descriptions-item label="车号">{{ inventoryDetail.vehicle_no || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="入库日期">{{ formatDate(inventoryDetail.in_date) }}</el-descriptions-item>
+                <el-descriptions-item v-if="inventoryDetail.transfer_ref" label="转让单号">{{ inventoryDetail.transfer_ref }}</el-descriptions-item>
+                <el-descriptions-item v-if="inventoryDetail.original_inventory_id" label="来源记录ID">{{ inventoryDetail.original_inventory_id }}</el-descriptions-item>
             </el-descriptions>
 
             <div style="margin-top: 20px;">
@@ -697,7 +757,7 @@
     </div>
 
     <script>
-        const { createApp, ref, reactive, computed, onMounted } = Vue;
+        const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
 
         const app = createApp({
             setup() {
@@ -708,8 +768,72 @@
 
                 const currentUser = ref(null);
                 const activeTab = ref('inventory');
+
+                const outTypeOptions = ref([
+                    { type_code: 1, type_name: '加工', tag_type: 'success' },
+                    { type_code: 2, type_name: '装卷', tag_type: 'primary' },
+                    { type_code: 3, type_name: '销售', tag_type: 'info' },
+                    { type_code: 4, type_name: '货权转让', tag_type: 'warning' }
+                ]);
+
+                const loadOutTypeOptions = async () => {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('outbound_types')
+                            .select('*')
+                            .eq('is_active', true)
+                            .order('sort_order', { ascending: true });
+                        if (!error && data && data.length > 0) {
+                            outTypeOptions.value = data.map(item => ({
+                                type_code: item.type_code,
+                                type_name: item.type_name,
+                                tag_type: item.tag_type
+                            }));
+                        }
+                    } catch (e) {
+                        console.error('加载出库类型配置失败，使用默认值:', e);
+                    }
+                };
+
+                const outTypeDropdownVisible = ref({});
+                const outTypeUpdating = ref({});
+
+                const toggleOutTypeDropdown = (row, event) => {
+                    event.stopPropagation();
+                    const key = row.outbound_order_id || row.id;
+                    outTypeDropdownVisible.value = {
+                        ...Object.fromEntries(Object.entries(outTypeDropdownVisible.value).map(([k]) => [k, false])),
+                        [key]: !outTypeDropdownVisible.value[key]
+                    };
+                };
+
+                const updateOutType = async (row, newType) => {
+                    const key = row.outbound_order_id || row.id;
+                    outTypeUpdating.value = { ...outTypeUpdating.value, [key]: true };
+                    try {
+                        const { error } = await supabaseClient
+                            .from('outbound')
+                            .update({ out_type: newType })
+                            .eq('outbound_order_id', key);
+                        if (error) throw error;
+                        row.out_type = newType;
+                        outTypeDropdownVisible.value[key] = false;
+                        ElementPlus.ElMessage.success('出库类型已更新');
+                    } catch (e) {
+                        console.error('更新出库类型失败:', e);
+                        ElementPlus.ElMessage.error('更新出库类型失败');
+                    } finally {
+                        outTypeUpdating.value = { ...outTypeUpdating.value, [key]: false };
+                    }
+                };
+
+                const closeAllOutTypeDropdowns = () => {
+                    outTypeDropdownVisible.value = {};
+                };
+
                 const loading = ref(false);
                 const searchQuery = ref('');
+                const dateRange = ref(null);
                 const outboundSearchQuery = ref('');
                 const inventoryStatusFilter = ref('in_stock');
                 const inventoryData = ref([]);
@@ -805,7 +929,15 @@
                     let result = inventoryData.value;
                     
                     if (inventoryStatusFilter.value === 'in_stock') {
-                        result = result.filter(item => item.status === 1);
+                        result = result.filter(item => item.status === 1 && !item._transferredOut);
+                    }
+
+                    if (dateRange.value && dateRange.value.length === 2) {
+                        const [startDate, endDate] = dateRange.value;
+                        result = result.filter(item => {
+                            const inDate = item.in_date ? item.in_date.substring(0, 10) : '';
+                            return inDate >= startDate && inDate <= endDate;
+                        });
                     }
                     
                     if (!searchQuery.value) return result;
@@ -815,6 +947,10 @@
                         item.material.toLowerCase().includes(query) ||
                         item.specification.toLowerCase().includes(query)
                     );
+                });
+
+                watch(inventoryStatusFilter, () => {
+                    calculateStats();
                 });
 
                 const filteredOutbound = computed(() => {
@@ -837,13 +973,29 @@
                     );
                 });
 
-                const checkAuth = () => {
+                const checkAuth = async () => {
                     const userStr = localStorage.getItem('currentUser');
                     if (!userStr) {
                         window.location.href = 'login.html';
                         return false;
                     }
                     currentUser.value = JSON.parse(userStr);
+                    
+                    try {
+                        const { data: userData, error: userError } = await supabaseClient
+                            .from('users')
+                            .select('*')
+                            .eq('id', currentUser.value.id)
+                            .maybeSingle();
+                            
+                        if (!userError && userData) {
+                            currentUser.value.canTransfer = userData.can_transfer === true;
+                            localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
+                        }
+                    } catch (error) {
+                        console.error('刷新用户权限失败:', error);
+                    }
+                    
                     return true;
                 };
 
@@ -861,14 +1013,72 @@
                         if (inventoryError) throw inventoryError;
                         inventoryData.value = inventory || [];
 
+                        const { data: transferOutRecords, error: transferOutError } = await supabaseClient
+                            .from('inventory_transfer')
+                            .select('inventory_id, batch_no, from_unit, to_unit, transfer_date, transfer_reason, operator_name')
+                            .in('from_unit', units)
+                            .eq('status', 1);
+
+                        if (!transferOutError && transferOutRecords) {
+                            const transferredIds = new Set(inventoryData.value.map(i => i.id));
+                            const newTransfers = transferOutRecords.filter(t => !transferredIds.has(t.inventory_id));
+
+                            if (newTransfers.length > 0) {
+                                const { data: transferredInventory, error: transferredError } = await supabaseClient
+                                    .from('inventory')
+                                    .select('*')
+                                    .in('id', newTransfers.map(t => t.inventory_id));
+
+                                if (!transferredError && transferredInventory) {
+                                    const transferMap = new Map(transferOutRecords.map(t => [t.inventory_id, t]));
+                                    transferredInventory.forEach(item => {
+                                        const transfer = transferMap.get(item.id);
+                                        if (transfer) {
+                                            item._transferredOut = true;
+                                            item._originalUnit = transfer.from_unit;
+                                            item._transferredTo = transfer.to_unit;
+                                            item._transferDate = transfer.transfer_date;
+                                            item._transferReason = transfer.transfer_reason;
+                                            item._transferOperator = transfer.operator_name;
+                                        }
+                                        inventoryData.value.push(item);
+                                    });
+                                }
+                            }
+                        }
+
+                        inventoryData.value.sort((a, b) => new Date(b.in_date) - new Date(a.in_date));
+
                         const { data: outbound, error: outboundError } = await supabaseClient
                             .from('outbound')
-                            .select('*')
+                            .select('*, inventory!inner(unit)')
                             .in('unit', units)
                             .order('out_date', { ascending: false });
 
                         if (outboundError) throw outboundError;
-                        outboundData.value = outbound || [];
+
+                        const outboundWithUnit = (outbound || []).map(item => ({
+                            ...item,
+                            unit: item.unit || item.inventory?.unit || ''
+                        }));
+
+                        const { data: outboundNoUnit, error: outboundNoUnitError } = await supabaseClient
+                            .from('outbound')
+                            .select('*, inventory!inner(unit)')
+                            .is('unit', null)
+                            .order('out_date', { ascending: false });
+
+                        if (!outboundNoUnitError && outboundNoUnit) {
+                            const filteredNoUnit = outboundNoUnit.filter(item =>
+                                units.includes(item.inventory?.unit)
+                            );
+                            outboundWithUnit.push(...filteredNoUnit.map(item => ({
+                                ...item,
+                                unit: item.inventory?.unit || ''
+                            })));
+                        }
+
+                        outboundData.value = outboundWithUnit;
 
                         await loadTransferData();
                         await loadLastTransfers();
@@ -931,10 +1141,16 @@
                 };
 
                 const calculateStats = () => {
-                    inventoryStats.totalBatches = inventoryData.value.length;
-                    inventoryStats.totalWeight = inventoryData.value.reduce((sum, item) => sum + parseFloat(item.weight), 0).toFixed(3);
-                    inventoryStats.inStock = inventoryData.value.filter(item => item.status === 1).length;
-                    inventoryStats.outStock = inventoryData.value.filter(item => item.status !== 1).length;
+                    let dataToCalculate = inventoryData.value;
+                    
+                    if (inventoryStatusFilter.value === 'in_stock') {
+                        dataToCalculate = inventoryData.value.filter(item => item.status === 1 && !item._transferredOut);
+                    }
+                    
+                    inventoryStats.totalBatches = dataToCalculate.length;
+                    inventoryStats.totalWeight = dataToCalculate.reduce((sum, item) => sum + parseFloat(item.weight), 0).toFixed(3);
+                    inventoryStats.inStock = dataToCalculate.filter(item => item.status === 1).length;
+                    inventoryStats.outStock = dataToCalculate.filter(item => item.status !== 1).length;
                 };
 
                 const formatDate = (dateStr) => {
@@ -949,23 +1165,13 @@
                 };
 
                 const getOutTypeText = (outType) => {
-                    const typeMap = {
-                        1: '加工',
-                        2: '装卷',
-                        3: '销售',
-                        4: '货权转让'
-                    };
-                    return typeMap[outType] || '未知';
+                    const found = outTypeOptions.value.find(opt => opt.type_code === outType);
+                    return found ? found.type_name : '未知';
                 };
 
                 const getOutTypeTagType = (outType) => {
-                    const typeMap = {
-                        1: 'success',
-                        2: 'primary',
-                        3: 'info',
-                        4: 'warning'
-                    };
-                    return typeMap[outType] || '';
+                    const found = outTypeOptions.value.find(opt => opt.type_code === outType);
+                    return found ? found.tag_type : '';
                 };
 
                 const formatDateTime = (dateStr) => {
@@ -1001,6 +1207,10 @@
                 };
 
                 const openTransferDialog = (row) => {
+                    if (!currentUser.value?.canTransfer) {
+                        ElementPlus.ElMessage.error('您没有货权转让权限');
+                        return;
+                    }
                     transferForm.inventoryId = row.id;
                     transferForm.batchNo = row.batch_no;
                     transferForm.fromUnit = row.unit;
@@ -1023,26 +1233,57 @@
                 const handleTransfer = async () => {
                     if (!transferFormRef.value) return;
                     
+                    if (!currentUser.value?.canTransfer) {
+                        ElementPlus.ElMessage.error('您没有货权转让权限');
+                        return;
+                    }
+                    
                     try {
                         const valid = await transferFormRef.value.validate();
                         if (!valid) return;
 
                         transferring.value = true;
 
-                        const { error: updateError } = await supabaseClient
+                        const { data: originalInventory, error: fetchError } = await supabaseClient
                             .from('inventory')
-                            .update({ 
-                                unit: transferForm.toUnit,
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq('id', transferForm.inventoryId);
+                            .select('*')
+                            .eq('id', transferForm.inventoryId)
+                            .single();
 
-                        if (updateError) throw updateError;
+                        if (fetchError) throw fetchError;
+
+                        const transferRefNo = `TRANSFER-${Date.now()}`;
+
+                        const { error: outboundError } = await supabaseClient
+                            .from('outbound')
+                            .insert({
+                                inventory_id: originalInventory.id,
+                                batch_no: transferForm.batchNo,
+                                unit: transferForm.fromUnit,
+                                material: originalInventory.material,
+                                specification: originalInventory.specification,
+                                stock_weight: parseFloat(originalInventory.weight),
+                                out_weight: parseFloat(originalInventory.weight),
+                                unit_price: 0,
+                                total_amount: 0,
+                                out_type: 4,
+                                out_date: new Date().toISOString().split('T')[0],
+                                vehicle_no: originalInventory.vehicle_no || '',
+                                remark: `${transferForm.fromUnit}货权转让给${transferForm.toUnit}，原因：${transferForm.transferReason}`,
+                                ref_no: transferRefNo
+                            });
+
+                        if (outboundError) throw outboundError;
+
+                        await supabaseClient
+                            .from('outbound')
+                            .update({ transfer_ref: transferRefNo })
+                            .eq('ref_no', transferRefNo);
 
                         const { error: transferError } = await supabaseClient
                             .from('inventory_transfer')
                             .insert({
-                                inventory_id: transferForm.inventoryId,
+                                inventory_id: originalInventory.id,
                                 batch_no: transferForm.batchNo,
                                 from_unit: transferForm.fromUnit,
                                 to_unit: transferForm.toUnit,
@@ -1055,34 +1296,26 @@
 
                         if (transferError) throw transferError;
 
-                        const { data: inventory, error: inventoryError } = await supabaseClient
+                        await supabaseClient
+                            .from('inventory_transfer')
+                            .update({ transfer_ref: transferRefNo })
+                            .eq('inventory_id', originalInventory.id)
+                            .eq('status', 1);
+
+                        const { error: updateOriginalError } = await supabaseClient
                             .from('inventory')
-                            .select('*')
-                            .eq('id', transferForm.inventoryId)
-                            .single();
+                            .update({ 
+                                unit: transferForm.toUnit,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', transferForm.inventoryId);
 
-                        if (inventoryError) throw inventoryError;
+                        if (updateOriginalError) throw updateOriginalError;
 
-                        const { error: outboundError } = await supabaseClient
-                            .from('outbound')
-                            .insert({
-                                inventory_id: transferForm.inventoryId,
-                                batch_no: transferForm.batchNo,
-                                unit: transferForm.fromUnit,
-                                material: inventory.material,
-                                specification: inventory.specification,
-                                stock_weight: parseFloat(inventory.weight),
-                                out_weight: parseFloat(inventory.weight),
-                                unit_price: 0,
-                                total_amount: 0,
-                                out_type: 4,
-                                out_date: new Date().toISOString().split('T')[0],
-                                vehicle_no: inventory.vehicle_no || '',
-                                remark: `货权转让给${transferForm.toUnit}，原因：${transferForm.transferReason}`,
-                                ref_no: `TRANSFER-${Date.now()}`
-                            });
-
-                        if (outboundError) throw outboundError;
+                        await supabaseClient
+                            .from('inventory')
+                            .update({ transfer_ref: transferRefNo })
+                            .eq('id', transferForm.inventoryId);
 
                         transferDialogVisible.value = false;
                         resetTransferForm();
@@ -1124,13 +1357,16 @@
 
                         if (inventoryError) throw inventoryError;
 
-                        const { data: transfers, error: transferError } = await supabaseClient
+                        let transfers = [];
+                        const { data: transferData, error: transferError } = await supabaseClient
                             .from('inventory_transfer')
                             .select('*')
                             .eq('inventory_id', row.id)
                             .order('transfer_date', { ascending: false });
-
-                        if (transferError) throw transferError;
+                        
+                        if (!transferError) {
+                            transfers = transferData || [];
+                        }
 
                         Object.assign(inventoryDetail, {
                             id: inventory.id,
@@ -1143,7 +1379,9 @@
                             vehicle_no: inventory.vehicle_no,
                             in_date: inventory.in_date,
                             status: inventory.status,
-                            transferHistory: transfers || []
+                            transfer_ref: inventory.transfer_ref,
+                            original_inventory_id: inventory.original_inventory_id,
+                            transferHistory: transfers
                         });
 
                         inventoryDetailDialogVisible.value = true;
@@ -1165,6 +1403,8 @@
                         vehicle_no: '',
                         in_date: '',
                         status: 1,
+                        transfer_ref: '',
+                        original_inventory_id: null,
                         transferHistory: []
                     });
                 };
@@ -1179,7 +1419,9 @@
                         '车号': item.vehicle_no || '',
                         '库位': item.storage_location,
                         '入库日期': formatDate(item.in_date),
-                        '状态': item.status === 1 ? '在库' : '已出库'
+                        '状态': item.status === 1 ? '在库' : (item.transfer_ref ? '货权已转让' : '已出库'),
+                        '转让单号': item.transfer_ref || '',
+                        '来源记录ID': item.original_inventory_id || ''
                     }));
 
                     const ws = XLSX.utils.json_to_sheet(data);
@@ -1196,12 +1438,12 @@
                         '规格': item.specification,
                         '库存重量(吨)': item.stock_weight,
                         '出库重量(吨)': item.out_weight,
+                        '出库类型': getOutTypeText(item.out_type),
                         '单价(元)': item.unit_price,
                         '总金额(元)': item.total_amount,
-                        '车号': item.vehicle_no || '',
-                        '出库方式': getOutTypeText(item.out_type),
                         '出库日期': formatDate(item.out_date),
-                        '单号': item.ref_no || ''
+                        '关联单号': item.ref_no || '',
+                        '备注': item.remark || ''
                     }));
 
                     const ws = XLSX.utils.json_to_sheet(data);
@@ -1268,8 +1510,9 @@
                     window.location.href = 'login.html';
                 };
 
-                onMounted(() => {
-                    if (checkAuth()) {
+                onMounted(async () => {
+                    await loadOutTypeOptions();
+                    if (await checkAuth()) {
                         loadData();
                     }
                 });
@@ -1279,6 +1522,7 @@
                     activeTab,
                     loading,
                     searchQuery,
+                    dateRange,
                     outboundSearchQuery,
                     inventoryStatusFilter,
                     filteredInventory,
@@ -1297,6 +1541,12 @@
                     formatDateTime,
                     getOutTypeText,
                     getOutTypeTagType,
+                    outTypeOptions,
+                    outTypeDropdownVisible,
+                    outTypeUpdating,
+                    toggleOutTypeDropdown,
+                    updateOutType,
+                    closeAllOutTypeDropdowns,
                     handleLogout,
                     changePasswordDialogVisible,
                     changingPassword,

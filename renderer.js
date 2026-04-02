@@ -1,3 +1,6 @@
+if (typeof require === 'undefined') {
+  console.warn('renderer.js skipped: not in Electron environment');
+} else {
 const { ipcRenderer, shell } = require('electron');
 const os = require('os');
 const path = require('path');
@@ -312,4 +315,5 @@ function editRemoteAccessUrl() {
 function killPort17026() {
   addLog('库存系统', '正在清理端口 17026...', 'info');
   ipcRenderer.send('kill-port-17026');
+}
 }

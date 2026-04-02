@@ -3987,7 +3987,7 @@
                     
                     <!-- 财务管理按钮 -->
                     <a 
-                        href="https://kucun.rf.gd/caiwu/finanace.html"
+                        href="finanace.html"
                         class="finance-btn"
                         target="_blank"
                     >
@@ -4001,6 +4001,15 @@
                         class="finance-btn"
                     >
                         费用
+                    </a>
+
+                    <!-- 管理按钮 -->
+                    <a 
+                        href="admin.html" 
+                        class="finance-btn"
+                        target="_blank"
+                    >
+                        管理
                     </a>
                 </div>
             </div>
@@ -4712,12 +4721,12 @@
                                     placeholder="选择出库类型" 
                                     style="width: 100%"
                                 >
-                                    <el-option label="加工" :value="1" />
-                                    </el-option>
-                                    <el-option label="装卷" :value="2" />
-                                    </el-option>
-                                    <el-option label="销售" :value="3" />
-                                    </el-option>
+                                    <el-option 
+                                        v-for="opt in outTypeOptions" 
+                                        :key="opt.type_code" 
+                                        :label="opt.type_name" 
+                                        :value="opt.type_code" 
+                                    />
                                 </el-select>
                             </el-form-item>
                         </div>
@@ -4981,13 +4990,12 @@
                     <span style="font-size: 14px; color: #606266;">出库类型:</span>
                     <el-select v-model="selectedOutTypeFilter" placeholder="全部" clearable style="width: 140px;" size="small">
                         <el-option label="全部" :value="''" />
-                        </el-option>
-                        <el-option label="加工" :value="1" />
-                        </el-option>
-                        <el-option label="装卷" :value="2" />
-                        </el-option>
-                        <el-option label="销售" :value="3" />
-                        </el-option>
+                        <el-option 
+                            v-for="opt in outTypeOptions" 
+                            :key="opt.type_code" 
+                            :label="opt.type_name" 
+                            :value="opt.type_code" 
+                        />
                     </el-select>
                 </div>
 
@@ -5028,9 +5036,35 @@
                                     <span style="font-size: 15px; font-weight: bold; color: #303133;"> 出库单号 {{ item.ref_no }}</span>
 
                                 <el-tag type="warning" size="small">出库</el-tag>
-                                <el-tag :type="item.out_type === 1 ? 'success' : (item.out_type === 2 ? 'primary' : 'info')" size="small">
-                                    {{ item.out_type === 1 ? '加工' : (item.out_type === 2 ? '装卷' : '销售') }}
-                                </el-tag>
+                                <div style="position: relative; display: inline-block;">
+                                    <el-tag 
+                                        :type="getOutTypeTagType(item.out_type)" 
+                                        size="small"
+                                        style="cursor: pointer;"
+                                        @click="toggleOutTypeDropdown(item, $event)"
+                                    >
+                                        {{ getOutTypeName(item.out_type) }}
+                                    </el-tag>
+                                    <div 
+                                        v-if="outTypeDropdownVisible[item.ref_no || item.id]"
+                                        style="position: absolute; top: 100%; left: 0; z-index: 2000; margin-top: 4px; background: white; border: 1px solid #e4e7ed; border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); min-width: 100px;"
+                                    >
+                                        <div 
+                                            v-for="opt in outTypeOptions" 
+                                            :key="opt.type_code"
+                                            style="padding: 8px 16px; cursor: pointer; font-size: 13px; white-space: nowrap;"
+                                            :style="{ 
+                                                backgroundColor: item.out_type === opt.type_code ? '#ecf5ff' : 'transparent',
+                                                fontWeight: item.out_type === opt.type_code ? 'bold' : 'normal'
+                                            }"
+                                            @click.stop="updateOutType(item, opt.type_code)"
+                                        >
+                                            <el-tag :type="opt.tag_type" size="small" style="pointer-events: none;">
+                                                {{ opt.type_name }}
+                                            </el-tag>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="mobile-actions-container">
                                 <el-button 
@@ -5418,6 +5452,83 @@
                 
                 // 当前激活的标签页
                 const activeTab = ref('inbound');
+
+                // 出库类型配置 - 从数据库加载
+                const outTypeOptions = ref([
+                    { type_code: 1, type_name: '加工', tag_type: 'success' },
+                    { type_code: 2, type_name: '装卷', tag_type: 'primary' },
+                    { type_code: 3, type_name: '销售', tag_type: 'info' }
+                ]);
+
+                const loadOutTypeOptions = async () => {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('outbound_types')
+                            .select('*')
+                            .eq('is_active', true)
+                            .order('sort_order', { ascending: true });
+                        if (!error && data && data.length > 0) {
+                            outTypeOptions.value = data.map(item => ({
+                                type_code: item.type_code,
+                                type_name: item.type_name,
+                                tag_type: item.tag_type
+                            }));
+                        }
+                    } catch (e) {
+                        console.error('加载出库类型配置失败，使用默认值:', e);
+                    }
+                };
+
+                const getOutTypeName = (outType) => {
+                    const found = outTypeOptions.value.find(opt => opt.type_code === outType);
+                    return found ? found.type_name : '未知类型';
+                };
+
+                const getOutTypeTagType = (outType) => {
+                    const found = outTypeOptions.value.find(opt => opt.type_code === outType);
+                    return found ? found.tag_type : 'info';
+                };
+
+                // 出库类型修改相关
+                const outTypeDropdownVisible = ref({});
+                const outTypeUpdating = ref({});
+
+                const toggleOutTypeDropdown = (item, event) => {
+                    event.stopPropagation();
+                    const key = item.ref_no || item.id;
+                    outTypeDropdownVisible.value = {
+                        ...Object.fromEntries(Object.entries(outTypeDropdownVisible.value).map(([k]) => [k, false])),
+                        [key]: !outTypeDropdownVisible.value[key]
+                    };
+                };
+
+                const updateOutType = async (item, newType) => {
+                    const key = item.ref_no || item.id;
+                    outTypeUpdating.value = { ...outTypeUpdating.value, [key]: true };
+                    try {
+                        const { error } = await supabaseClient
+                            .from('outbound')
+                            .update({ out_type: newType })
+                            .eq('ref_no', item.ref_no);
+                        if (error) throw error;
+                        item.out_type = newType;
+                        if (item.batchItems) {
+                            item.batchItems.forEach(batch => { batch.out_type = newType; });
+                        }
+                        outTypeDropdownVisible.value[key] = false;
+                        ElMessage.success('出库类型已更新');
+                    } catch (e) {
+                        console.error('更新出库类型失败:', e);
+                        ElMessage.error('更新出库类型失败');
+                    } finally {
+                        outTypeUpdating.value = { ...outTypeUpdating.value, [key]: false };
+                    }
+                };
+
+                const closeAllOutTypeDropdowns = () => {
+                    outTypeDropdownVisible.value = {};
+                };
+
                 
                 // 批号记录展开状态
                 const expandedBatches = ref(new Set());
@@ -5504,6 +5615,8 @@
                         !cacheStatus.contains(event.target)) {
                         closeCachePanel();
                     }
+
+                    closeAllOutTypeDropdowns();
                 };
                 
                 const updateCacheStats = () => {
@@ -5753,6 +5866,8 @@
                     document.addEventListener('keydown', handleKeydown);
                     document.addEventListener('click', handleDocumentClick);
                     document.addEventListener('visibilitychange', handleVisibilityChange);
+                    
+                    await loadOutTypeOptions();
                     
                     // 页面加载时使用智能数据加载
                     try {
@@ -7222,9 +7337,9 @@
                                 out_date: item.out_date || new Date().toISOString().split('T')[0],
                                 vehicle_no: item.vehicle_no || '',
                                 remark: item.remark || '',
-                                ref_no: item.ref_no || '',  // 修复：添加ref_no字段
-                                created_at: item.outbound_timestamp || new Date().toISOString()  // 使用精确的出库时间戳
-                                // 注意：outbound表中没有unit字段，使用inventory表中的unit字段
+                                ref_no: item.ref_no || '',
+                                unit: item.unit || '',
+                                created_at: item.outbound_timestamp || new Date().toISOString()
                             };
                             
                             // 同一出库单号可以有多个批次，不需要检查出库单号是否已存在
@@ -7446,16 +7561,6 @@
                     return date.toLocaleDateString('zh-CN', options);
                 };
 
-                // 获取出库类型名称
-                const getOutTypeName = (outType) => {
-                    const typeMap = {
-                        1: '加工',
-                        2: '装卷',
-                        3: '销售'
-                    };
-                    return typeMap[outType] || '未知类型';
-                };
-
                 // 格式化日期时间（修复时区问题）
                 const formatDateTime = (dateTimeString) => {
                     if (!dateTimeString) return '';
@@ -7563,14 +7668,6 @@
                         }
 
                         const excelData = [];
-                        const getOutTypeText = (type) => {
-                            const t = Number(type);
-                            if (t === 1) return '加工';
-                            if (t === 2) return '装卷';
-                            if (t === 3) return '销售';
-                            if (t === 4) return '货权转让';
-                            return '';
-                        };
                         groupedOutboundHistory.value.forEach(item => {
                             if (item.batchItems && item.batchItems.length > 0) {
                                 item.batchItems.forEach(batch => {
@@ -7579,7 +7676,7 @@
                                         '单位': item.unit || '',
                                         '出库时间': formatDateTime(item.created_at) || '',
                                         '装货车辆': item.vehicle_no || '',
-                                        '出库类型': getOutTypeText(item.out_type),
+                                        '出库类型': getOutTypeName(item.out_type),
                                         '批号': batch.batch_no || '',
                                         '规格': batch.specification || '',
                                         '材质': batch.material || '',
@@ -8657,9 +8754,7 @@
                                 <div style="margin-bottom: 12px;">
                                     <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">出库类型：</label>
                                     <select id="edit_out_type" style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px;">
-                                        <option value="1" ${formData.out_type === 1 ? 'selected' : ''}>加工</option>
-                                        <option value="2" ${formData.out_type === 2 ? 'selected' : ''}>装卷</option>
-                                        <option value="3" ${formData.out_type === 3 ? 'selected' : ''}>销售</option>
+                                        ${outTypeOptions.value.map(opt => `<option value="${opt.type_code}" ${formData.out_type === opt.type_code ? 'selected' : ''}>${opt.type_name}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div style="margin-bottom: 12px;">
@@ -9044,7 +9139,8 @@
                         storage_location: inboundForm.storage_location,
                         in_date: inboundForm.in_date ? new Date(inboundForm.in_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                         remark: inboundForm.remark,
-                        status: 1
+                        status: 1,
+                        is_listed: true
                     };
 
                     // 插入到Supabase
@@ -9330,14 +9426,14 @@
                             let updates = {};
                             if (batchItem.out_weight === inventoryItem.weight) {
                                 // 全部出库
-                                updates = { status: 2 };
+                                updates = { status: 2, is_listed: false };
                             } else {
                                 // 部分出库，确保剩余重量保留3位小数
                                 let remainingWeight = Math.round((inventoryItem.weight - batchItem.out_weight) * 1000) / 1000;
                                 
                                 // 双重保障：同时使用parseFloat和toFixed确保精度
                                 remainingWeight = parseFloat(remainingWeight.toFixed(3));
-                                updates = { weight: remainingWeight };
+                                updates = { weight: remainingWeight, is_listed: false };
                             }
                             
                             // 更新到Supabase
@@ -11696,6 +11792,14 @@
                     inventoryStatus,
                     loading,
                     refreshLoading,
+                    outTypeOptions,
+                    getOutTypeName,
+                    getOutTypeTagType,
+                    outTypeDropdownVisible,
+                    outTypeUpdating,
+                    toggleOutTypeDropdown,
+                    updateOutType,
+                    closeAllOutTypeDropdowns,
                     availableUnits,
                     availableMaterials,
                     availableUnitsByStatus,
