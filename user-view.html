@@ -369,8 +369,8 @@
                                 </div>
                             </div>
 
-                            <el-table 
-                                :data="filteredInventory" 
+                            <el-table
+                                :data="filteredInventory"
                                 v-loading="loading"
                                 stripe
                                 border
@@ -381,8 +381,16 @@
                                 <el-table-column prop="material" label="材质" min-width="100"></el-table-column>
                                 <el-table-column prop="specification" label="规格" min-width="200"></el-table-column>
                                 <el-table-column prop="weight" label="重量(吨)" min-width="100" align="right"></el-table-column>
-                                <el-table-column prop="vehicle_no" label="车号" min-width="100"></el-table-column>
-                                <el-table-column prop="storage_location" label="库位" min-width="100"></el-table-column>
+                                <el-table-column prop="vehicle_no" label="车号" min-width="100">
+                                    <template #default="{ row }">
+                                        {{ row.vehicle_no || '-' }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="storage_location" label="库位" min-width="100">
+                                    <template #default="{ row }">
+                                        {{ row.storage_location || '-' }}
+                                    </template>
+                                </el-table-column>
                                 <el-table-column prop="in_date" label="入库日期" min-width="120">
                                     <template #default="{ row }">
                                         {{ formatDate(row.in_date) }}
@@ -416,24 +424,18 @@
                                         <span v-else style="color: #999; font-size: 12px;">无转移记录</span>
                                     </template>
                                 </el-table-column>
-                                <el-table-column prop="transfer_ref" label="转让单号" min-width="150">
-                                    <template #default="{ row }">
-                                        <span v-if="row.transfer_ref" style="font-family: monospace; font-size: 12px;">{{ row.transfer_ref }}</span>
-                                        <span v-else>-</span>
-                                    </template>
-                                </el-table-column>
                                 <el-table-column label="操作" width="150" fixed="right">
                                     <template #default="{ row }">
-                                        <el-button 
-                                            type="info" 
-                                            size="small" 
+                                        <el-button
+                                            type="info"
+                                            size="small"
                                             @click="viewInventoryDetail(row)"
                                         >
                                             详情
                                         </el-button>
-                                        <el-button 
-                                            type="primary" 
-                                            size="small" 
+                                        <el-button
+                                            type="primary"
+                                            size="small"
                                             @click="openTransferDialog(row)"
                                             :disabled="row.status !== 1 || !currentUser?.canTransfer || row._transferredOut"
                                         >
@@ -926,27 +928,30 @@
                 };
 
                 const filteredInventory = computed(() => {
-                    let result = inventoryData.value;
-                    
+                    let realItems = inventoryData.value;
+
                     if (inventoryStatusFilter.value === 'in_stock') {
-                        result = result.filter(item => item.status === 1 && !item._transferredOut);
+                        realItems = realItems.filter(item => item.status === 1 && !item._transferredOut);
                     }
 
                     if (dateRange.value && dateRange.value.length === 2) {
                         const [startDate, endDate] = dateRange.value;
-                        result = result.filter(item => {
+                        realItems = realItems.filter(item => {
                             const inDate = item.in_date ? item.in_date.substring(0, 10) : '';
                             return inDate >= startDate && inDate <= endDate;
                         });
                     }
-                    
-                    if (!searchQuery.value) return result;
+
+                    if (!searchQuery.value) {
+                        return [...realItems];
+                    }
                     const query = searchQuery.value.toLowerCase();
-                    return result.filter(item => 
+                    const filteredReal = realItems.filter(item =>
                         item.batch_no.toLowerCase().includes(query) ||
                         item.material.toLowerCase().includes(query) ||
                         item.specification.toLowerCase().includes(query)
                     );
+                    return [...filteredReal];
                 });
 
                 watch(inventoryStatusFilter, () => {
@@ -1142,13 +1147,13 @@
 
                 const calculateStats = () => {
                     let dataToCalculate = inventoryData.value;
-                    
+
                     if (inventoryStatusFilter.value === 'in_stock') {
                         dataToCalculate = inventoryData.value.filter(item => item.status === 1 && !item._transferredOut);
                     }
-                    
+
                     inventoryStats.totalBatches = dataToCalculate.length;
-                    inventoryStats.totalWeight = dataToCalculate.reduce((sum, item) => sum + parseFloat(item.weight), 0).toFixed(3);
+                    inventoryStats.totalWeight = dataToCalculate.reduce((sum, item) => sum + parseFloat(item.weight || 0), 0).toFixed(3);
                     inventoryStats.inStock = dataToCalculate.filter(item => item.status === 1).length;
                     inventoryStats.outStock = dataToCalculate.filter(item => item.status !== 1).length;
                 };
@@ -1525,6 +1530,8 @@
                     dateRange,
                     outboundSearchQuery,
                     inventoryStatusFilter,
+                    showOnlyVirtualInventory,
+                    virtualInventoryData,
                     filteredInventory,
                     filteredOutbound,
                     filteredTransfer,

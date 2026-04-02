@@ -559,3 +559,83 @@ ORDER BY o.out_date DESC;
 -- 完成提示
 -- =============================================
 SELECT '数据库初始化完成' AS result;
+
+-- =============================================
+-- 第五部分：虚拟库存表（邯钢现货）
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS public.virtual_inventory (
+    id BIGSERIAL PRIMARY KEY,
+    batch_no VARCHAR(50) NOT NULL UNIQUE,
+    material VARCHAR(50) NOT NULL,
+    specification VARCHAR(100) NOT NULL,
+    weight DECIMAL(15,3) NOT NULL DEFAULT 0,
+    unit_price DECIMAL(10,2) DEFAULT 0,
+    source VARCHAR(100),
+    location VARCHAR(100),
+    status SMALLINT NOT NULL DEFAULT 1,
+    remark TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_virtual_inventory_batch_no ON public.virtual_inventory(batch_no);
+CREATE INDEX IF NOT EXISTS idx_virtual_inventory_material ON public.virtual_inventory(material);
+CREATE INDEX IF NOT EXISTS idx_virtual_inventory_status ON public.virtual_inventory(status);
+CREATE INDEX IF NOT EXISTS idx_virtual_inventory_created_at ON public.virtual_inventory(created_at DESC);
+
+COMMENT ON TABLE public.virtual_inventory IS '虚拟库存表（邯钢现货）- 与实际库存完全隔离';
+COMMENT ON COLUMN public.virtual_inventory.id IS '主键ID';
+COMMENT ON COLUMN public.virtual_inventory.batch_no IS '批号（唯一标识）';
+COMMENT ON COLUMN public.virtual_inventory.material IS '材质（如Q235B、Q355B）';
+COMMENT ON COLUMN public.virtual_inventory.specification IS '规格（如3.0*1250*C）';
+COMMENT ON COLUMN public.virtual_inventory.weight IS '重量（单位：吨）';
+COMMENT ON COLUMN public.virtual_inventory.unit_price IS '单价（单位：元/吨）';
+COMMENT ON COLUMN public.virtual_inventory.source IS '来源（如邯钢本部、邯钢新区）';
+COMMENT ON COLUMN public.virtual_inventory.location IS '存放地（如邯郸、天津）';
+COMMENT ON COLUMN public.virtual_inventory.status IS '状态：1-可用，0-已锁定';
+COMMENT ON COLUMN public.virtual_inventory.remark IS '备注信息';
+
+CREATE OR REPLACE FUNCTION update_virtual_inventory_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_virtual_inventory_updated_at ON public.virtual_inventory;
+CREATE TRIGGER update_virtual_inventory_updated_at
+    BEFORE UPDATE ON public.virtual_inventory
+    FOR EACH ROW
+    EXECUTE FUNCTION update_virtual_inventory_updated_at();
+
+-- =============================================
+-- 第六部分：价格调整日志表
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS public.price_adjustment_logs (
+    id BIGSERIAL PRIMARY KEY,
+    batch_no VARCHAR(100) NOT NULL,
+    old_price DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    new_price DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    adjust_mode VARCHAR(20) NOT NULL,
+    adjust_value DECIMAL(12, 2) NOT NULL,
+    operator VARCHAR(100),
+    operation_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    operation_type VARCHAR(50) DEFAULT 'batch_price_adjustment'
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_adjustment_logs_batch_no ON public.price_adjustment_logs(batch_no);
+CREATE INDEX IF NOT EXISTS idx_price_adjustment_logs_operation_time ON public.price_adjustment_logs(operation_time);
+CREATE INDEX IF NOT EXISTS idx_price_adjustment_logs_operator ON public.price_adjustment_logs(operator);
+
+COMMENT ON TABLE public.price_adjustment_logs IS '价格调整日志表';
+COMMENT ON COLUMN public.price_adjustment_logs.batch_no IS '批号';
+COMMENT ON COLUMN public.price_adjustment_logs.old_price IS '调整前单价(元/吨)';
+COMMENT ON COLUMN public.price_adjustment_logs.new_price IS '调整后单价(元/吨)';
+COMMENT ON COLUMN public.price_adjustment_logs.adjust_mode IS '调整方式: add-增加, subtract-减少';
+COMMENT ON COLUMN public.price_adjustment_logs.adjust_value IS '调整值';
+COMMENT ON COLUMN public.price_adjustment_logs.operator IS '操作人';
+COMMENT ON COLUMN public.price_adjustment_logs.operation_time IS '操作时间';
+COMMENT ON COLUMN public.price_adjustment_logs.operation_type IS '操作类型';
