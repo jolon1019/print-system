@@ -1710,7 +1710,7 @@
             border-left-color: #67c23a;
         }
         .stat-number {
-            font-size: 0.7em;
+            font-size: 1.2em;
             font-weight: bold;
             color: #409EFF;
             margin-bottom: 2px;
@@ -1771,6 +1771,106 @@
             padding: 0 10px;
             margin-bottom: 15px;
         }
+
+        /* 自动完成功能样式 */
+        .autocomplete-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 9999 !important;
+            margin-top: 4px;
+            display: block !important;
+        }
+
+        .autocomplete-dropdown.loading {
+            min-height: 60px;
+        }
+
+        .autocomplete-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            color: #909399;
+            font-size: 13px;
+        }
+
+        .autocomplete-loading i {
+            margin-right: 8px;
+            animation: rotating 2s linear infinite;
+        }
+
+        @keyframes rotating {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .autocomplete-no-results {
+            padding: 12px;
+            text-align: center;
+            color: #909399;
+            font-size: 13px;
+        }
+
+        .autocomplete-suggestions-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .autocomplete-suggestion-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #606266;
+            transition: background-color 0.2s;
+        }
+
+        .autocomplete-suggestion-item:hover {
+            background-color: #f5f7fa;
+        }
+
+        .autocomplete-suggestion-item.highlighted {
+            background-color: #ecf5ff;
+            color: #409eff;
+        }
+
+        .autocomplete-suggestion-item i {
+            margin-right: 8px;
+            color: #c0c4cc;
+            font-size: 14px;
+        }
+
+        .autocomplete-suggestion-item:hover i,
+        .autocomplete-suggestion-item.highlighted i {
+            color: #409eff;
+        }
+
+        .autocomplete-suggestion-item span {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
 
         /* 库存卡片样式 */
         .inventory-cards {
@@ -4428,7 +4528,7 @@
         <div class="app-container">
             <!-- 头部 -->
             <div class="header">
-                <h1>🏭 热卷管理v2</h1>
+                <h1>🏭 热卷管理v3</h1>
 
                 <!-- 状态指示器 -->
                 <div style="margin-top: 15px; display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap;">
@@ -4508,6 +4608,27 @@
                     @click="activeTab = 'history'"
                 >
                     📊 出库记录
+                </div>
+                <div class="tab-item" style="margin-left: auto;">
+                    <el-dropdown trigger="click">
+                        <span class="el-dropdown-link" style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                            💼 销售财务
+                            <el-icon class="el-icon--right"><arrow-down /></el-icon>
+                        </span>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item @click="goToPage('customers.html')">👥 客户管理</el-dropdown-item>
+                                <el-dropdown-item @click="goToPage('sales.html')">📝 销售订单</el-dropdown-item>
+                                <el-dropdown-item @click="goToPage('receivables.html')">💰 应收账款</el-dropdown-item>
+                                <el-dropdown-item @click="goToPage('payables.html')">💳 应付账款</el-dropdown-item>
+                                <el-dropdown-item divided @click="goToPage('costs.html')">📊 成本核算</el-dropdown-item>
+                                <el-dropdown-item @click="goToPage('tax.html')">📋 税务管理</el-dropdown-item>
+                                <el-dropdown-item divided @click="goToPage('vouchers.html')">📑 凭证管理</el-dropdown-item>
+                                <el-dropdown-item @click="goToPage('closing.html')">🔄 期末结账</el-dropdown-item>
+                                <el-dropdown-item @click="goToPage('reports.html')">📈 财务报表</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
                 </div>
             </div>
 
@@ -4603,7 +4724,7 @@
                         <div class="stat-label">在库卷数</div>
                         <div class="stat-trend trend-up" v-if="statistics.todayIn > 0">今日入库 +{{ statistics.todayIn }}卷</div>
                     </div>
-                    <div class="stat-card success">
+                    <div class="stat-card">
                         <div class="stat-number">{{ statistics.totalWeight }} 吨</div>
                         <div class="stat-label">总库存重量</div>
                         <div class="stat-trend trend-up" v-if="statistics.todayInWeight > 0">今日 +{{ statistics.todayInWeight }}吨</div>
@@ -4613,7 +4734,7 @@
                         <div class="stat-label">供应商单位</div>
                         <div class="stat-trend">{{ statistics.materialCount }} 种材质</div>
                     </div>
-                    <div class="stat-card warning">
+                    <div class="stat-card">
                         <div class="stat-number">{{ statistics.totalTransportFee }} 元</div>
                         <div class="stat-label">总运费</div>
                         <div class="stat-trend">{{ statistics.totalAdvancePayment }} 元垫付</div>
@@ -4647,9 +4768,9 @@
                             </div>
                             <div class="form-col">
                                 <el-select v-model="queryForm.status" clearable placeholder="库存状态" style="width: 100%" size="small">
-                                    <el-option label="全部" value="" />
-                                    <el-option label="在库" :value="1" />
-                                    <el-option label="已出库" :value="2" />
+                                    <el-option label="全部" value="" /></el-option>
+                                    <el-option label="在库" :value="1" /></el-option>
+                                    <el-option label="已出库" :value="2" /></el-option>
                                 </el-select>
                             </div>
                         </div>
@@ -5092,12 +5213,43 @@
                     <div class="form-row">
                         <div class="form-col">
                             <el-form-item label="单位" prop="unit">
-                                <el-input 
-                                    v-model="inboundForm.unit" 
-                                    placeholder="单位名称" 
-                                    clearable
-                                    @blur="inboundForm.unit = inboundForm.unit.toUpperCase()"
-                                />
+                                <div class="autocomplete-wrapper" style="position: relative; width: 100%;">
+                                    <el-input 
+                                        v-model="inboundForm.unit" 
+                                        placeholder="单位名称" 
+                                        clearable
+                                        @input="handleUnitInput"
+                                        @focus="handleUnitFocus"
+                                        @keydown="handleUnitKeydown"
+                                        @blur="closeUnitDropdown"
+                                        autocomplete="off"
+                                        aria-autocomplete="list"
+                                        aria-haspopup="listbox"
+                                        :aria-expanded="unitAutocomplete.showDropdown ? 'true' : 'false'"
+                                        aria-controls="unit-suggestions-listbox"
+                                        :aria-activedescendant="unitAutocomplete.highlightedIndex >= 0 ? 'unit-suggestion-' + unitAutocomplete.highlightedIndex : ''"
+                                    />
+                                    <!-- 自动完成下拉列表 - 简化测试版本 -->
+                                    <div 
+                                        v-if="unitAutocomplete.suggestions && unitAutocomplete.suggestions.length > 0"
+                                        id="unit-suggestions-listbox"
+                                        style="border: 3px solid blue; background: yellow; padding: 10px; position: absolute; top: 100%; left: 0; right: 0; z-index: 99999;"
+                                    >
+                                        <div style="font-weight: bold; margin-bottom: 5px;">
+                                            🧪 测试下拉列表 (建议数: {{ unitAutocomplete.suggestions.length }})
+                                        </div>
+                                        <ul style="list-style: none; margin: 0; padding: 0;">
+                                            <li 
+                                                v-for="(unit, index) in unitAutocomplete.suggestions" 
+                                                :key="index"
+                                                style="padding: 8px; cursor: pointer; border-bottom: 1px solid #ccc;"
+                                                @click="selectUnitSuggestion(unit)"
+                                            >
+                                                {{ unit }}
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </el-form-item>
                         </div>
                         <div class="form-col">
@@ -6430,6 +6582,10 @@
                     window.location.href = 'admin.html';
                 };
                 
+                const goToPage = (page) => {
+                    window.location.href = page;
+                };
+                
                 // 键盘事件监听器 - 防止回车键意外提交
                 const handleKeydown = (event) => {
                     // 处理 ESC 键关闭全屏图片
@@ -6967,7 +7123,247 @@
                 const inboundFormRef = ref();
                 const outboundFormRef = ref();
 
-                // =========== WebSocket远程打印相关 ===========
+                // =========== 自动完成功能相关 ===========
+                const unitAutocomplete = reactive({
+                    loading: false,
+                    suggestions: [],
+                    highlightedIndex: -1,
+                    showDropdown: false,
+                    debounceTimer: null,
+                    cache: new Map()
+                });
+
+                // 防抖函数
+                const debounce = (fn, delay) => {
+                    return function(...args) {
+                        if (unitAutocomplete.debounceTimer) {
+                            clearTimeout(unitAutocomplete.debounceTimer);
+                        }
+                        unitAutocomplete.debounceTimer = setTimeout(() => {
+                            fn.apply(this, args);
+                        }, delay);
+                    };
+                };
+
+                // 从数据库获取单位名称建议
+                const fetchUnitSuggestions = async (query) => {
+                    console.log('开始查询单位名称:', query);
+                    
+                    if (!query || query.trim().length === 0) {
+                        unitAutocomplete.suggestions = [];
+                        unitAutocomplete.showDropdown = false;
+                        return;
+                    }
+
+                    unitAutocomplete.loading = true;
+                    unitAutocomplete.highlightedIndex = -1;
+
+                    try {
+                        // 检查缓存
+                        const cacheKey = query.toLowerCase();
+                        if (unitAutocomplete.cache.has(cacheKey)) {
+                            const cachedData = unitAutocomplete.cache.get(cacheKey);
+                            console.log('使用缓存数据:', cachedData);
+                            unitAutocomplete.suggestions = cachedData;
+                            unitAutocomplete.showDropdown = cachedData.length > 0;
+                            unitAutocomplete.loading = false;
+                            console.log('缓存数据显示状态:', unitAutocomplete.showDropdown, '数据长度:', cachedData.length);
+                            
+                            // 使用 nextTick 确保 DOM 更新完成
+                            nextTick(() => {
+                                const dropdown = document.getElementById('unit-suggestions-listbox');
+                                if (dropdown) {
+                                    console.log('✅ 缓存数据：下拉列表 DOM 元素已找到');
+                                    console.log('下拉列表位置:', dropdown.getBoundingClientRect());
+                                } else {
+                                    console.error('❌ 缓存数据：未找到下拉列表 DOM 元素');
+                                }
+                            });
+                            return;
+                        }
+
+                        // 从数据库查询
+                        console.log('从数据库查询...');
+                        const { data, error } = await supabaseClient
+                            .from('inventory')
+                            .select('unit')
+                            .ilike('unit', `%${query}%`)
+                            .limit(10);
+
+                        console.log('查询结果:', { data, error });
+
+                        if (error) {
+                            console.error('查询单位名称失败:', error);
+                            unitAutocomplete.suggestions = [];
+                            unitAutocomplete.showDropdown = false;
+                            unitAutocomplete.loading = false;
+                            return;
+                        }
+
+                        // 处理结果，去重并按相关性排序
+                        const units = [...new Set(data.map(item => item.unit))]
+                            .filter(unit => unit && unit.toUpperCase().includes(query.toUpperCase()))
+                            .slice(0, 10);
+
+                        console.log('处理后的单位列表:', units);
+
+                        unitAutocomplete.suggestions = units;
+                        // 只缓存非空结果
+                        if (units.length > 0) {
+                            unitAutocomplete.cache.set(cacheKey, units);
+                        }
+                        unitAutocomplete.showDropdown = units.length > 0;
+                        
+                        console.log('下拉列表状态:', unitAutocomplete.showDropdown, '建议数量:', units.length);
+                        
+                        // 使用 nextTick 确保 DOM 更新完成
+                        nextTick(() => {
+                            const dropdown = document.getElementById('unit-suggestions-listbox');
+                            if (dropdown) {
+                                console.log('✅ 下拉列表 DOM 元素已找到:', dropdown);
+                                console.log('下拉列表样式:', window.getComputedStyle(dropdown));
+                                console.log('下拉列表显示状态:', window.getComputedStyle(dropdown).display);
+                                console.log('下拉列表可见性:', window.getComputedStyle(dropdown).visibility);
+                                console.log('下拉列表位置:', dropdown.getBoundingClientRect());
+                            } else {
+                                console.error('❌ 未找到下拉列表 DOM 元素');
+                            }
+                        });
+                    } catch (error) {
+                        console.error('获取单位名称建议失败:', error);
+                        unitAutocomplete.suggestions = [];
+                        unitAutocomplete.showDropdown = false;
+                    } finally {
+                        unitAutocomplete.loading = false;
+                    }
+                };
+
+                // 处理输入事件（带防抖）
+                let debounceTimer = null;
+                const handleUnitInput = (query) => {
+                    console.log('输入值:', query);
+                    
+                    if (!query || query.trim().length === 0) {
+                        unitAutocomplete.suggestions = [];
+                        unitAutocomplete.showDropdown = false;
+                        return;
+                    }
+
+                    if (debounceTimer) {
+                        clearTimeout(debounceTimer);
+                    }
+
+                    debounceTimer = setTimeout(() => {
+                        console.log('执行查询:', query);
+                        fetchUnitSuggestions(query);
+                    }, 300);
+                };
+
+                // 处理输入框获得焦点
+                const handleUnitFocus = () => {
+                    console.log('输入框获得焦点');
+                    if (inboundForm.unit && inboundForm.unit.trim().length > 0) {
+                        console.log('当前值:', inboundForm.unit);
+                        fetchUnitSuggestions(inboundForm.unit);
+                    }
+                };
+
+                // 选择建议项
+                const selectUnitSuggestion = (unit) => {
+                    inboundForm.unit = unit.toUpperCase();
+                    unitAutocomplete.showDropdown = false;
+                    unitAutocomplete.suggestions = [];
+                };
+
+                // 键盘导航
+                const handleUnitKeydown = (event) => {
+                    if (!unitAutocomplete.showDropdown || unitAutocomplete.suggestions.length === 0) {
+                        return;
+                    }
+
+                    switch (event.key) {
+                        case 'ArrowDown':
+                            event.preventDefault();
+                            unitAutocomplete.highlightedIndex = Math.min(
+                                unitAutocomplete.highlightedIndex + 1,
+                                unitAutocomplete.suggestions.length - 1
+                            );
+                            break;
+                        case 'ArrowUp':
+                            event.preventDefault();
+                            unitAutocomplete.highlightedIndex = Math.max(unitAutocomplete.highlightedIndex - 1, 0);
+                            break;
+                        case 'Enter':
+                            event.preventDefault();
+                            if (unitAutocomplete.highlightedIndex >= 0 && 
+                                unitAutocomplete.highlightedIndex < unitAutocomplete.suggestions.length) {
+                                selectUnitSuggestion(unitAutocomplete.suggestions[unitAutocomplete.highlightedIndex]);
+                            }
+                            break;
+                        case 'Escape':
+                            unitAutocomplete.showDropdown = false;
+                            unitAutocomplete.suggestions = [];
+                            break;
+                    }
+                };
+
+                // 鼠标悬停高亮
+                const highlightSuggestion = (index) => {
+                    unitAutocomplete.highlightedIndex = index;
+                };
+
+                // 关闭下拉框（点击外部时）
+                const closeUnitDropdown = () => {
+                    setTimeout(() => {
+                        unitAutocomplete.showDropdown = false;
+                        unitAutocomplete.suggestions = [];
+                    }, 200);
+                };
+
+                // 清除缓存（用于调试）
+                const clearAutocompleteCache = () => {
+                    unitAutocomplete.cache.clear();
+                    console.log('自动完成缓存已清除');
+                };
+
+                // 测试：查看数据库中所有单位名称
+                const testFetchAllUnits = async () => {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('inventory')
+                            .select('unit')
+                            .limit(100);
+                        
+                        if (error) {
+                            console.error('查询失败:', error);
+                            return;
+                        }
+                        
+                        const units = [...new Set(data.map(item => item.unit))].filter(u => u);
+                        console.log('数据库中所有单位名称:', units);
+                        console.log('总数:', units.length);
+                    } catch (error) {
+                        console.error('测试查询失败:', error);
+                    }
+                };
+
+                // 测试：手动显示下拉列表
+                const testShowDropdown = () => {
+                    console.log('手动测试显示下拉列表');
+                    unitAutocomplete.suggestions = ['测试单位1', '测试单位2', '测试单位3'];
+                    unitAutocomplete.showDropdown = true;
+                    unitAutocomplete.loading = false;
+                    
+                    nextTick(() => {
+                        const dropdown = document.getElementById('unit-suggestions-listbox');
+                        console.log('手动测试 - 下拉列表元素:', dropdown);
+                        if (dropdown) {
+                            console.log('手动测试 - 下拉列表位置:', dropdown.getBoundingClientRect());
+                        }
+                    });
+                };
+
+                // =========== WebSocket 远程打印相关 ===========
                 const wsServerUrl = ref('ws://localhost:17026');
                 const wsStatus = ref('disconnected');
                 const wsConnected = ref(false);
@@ -12787,8 +13183,23 @@
                     // 出库提交状态
                     isSubmittingOutbound,
                     
+                    // 自动完成功能相关
+                    unitAutocomplete,
+                    handleUnitInput,
+                    handleUnitFocus,
+                    handleUnitKeydown,
+                    selectUnitSuggestion,
+                    highlightSuggestion,
+                    closeUnitDropdown,
+                    clearAutocompleteCache,
+                    testFetchAllUnits,
+                    testShowDropdown,
+                    
                     // 进入管理员页面
-                    goToAdminPage
+                    goToAdminPage,
+                    
+                    // 页面跳转
+                    goToPage
                 };
             }
         };
@@ -12802,6 +13213,39 @@
                 app.component(key, component);
             }
         }
+        
+        // 全局测试函数
+        window.testAutocomplete = () => {
+            console.log('=== 全局自动完成测试 ===');
+            const appInstance = app._instance;
+            if (appInstance && appInstance.proxy) {
+                console.log('Vue 实例:', appInstance.proxy);
+                console.log('unitAutocomplete:', appInstance.proxy.unitAutocomplete);
+                
+                // 手动设置数据
+                appInstance.proxy.unitAutocomplete.suggestions = ['测试单位A', '测试单位B', '测试单位C'];
+                appInstance.proxy.unitAutocomplete.showDropdown = true;
+                appInstance.proxy.unitAutocomplete.loading = false;
+                
+                console.log('已设置数据:', appInstance.proxy.unitAutocomplete);
+                
+                // 等待 DOM 更新
+                setTimeout(() => {
+                    const dropdown = document.getElementById('unit-suggestions-listbox');
+                    console.log('DOM 元素:', dropdown);
+                    if (dropdown) {
+                        console.log('✅ 成功！下拉列表已渲染');
+                        console.log('位置:', dropdown.getBoundingClientRect());
+                    } else {
+                        console.log('❌ 失败！下拉列表未渲染');
+                    }
+                }, 500);
+            } else {
+                console.error('未找到 Vue 实例');
+            }
+        };
+        
+        console.log('✅ 自动完成测试函数已加载。在控制台运行: testAutocomplete()');
         
         app.mount('#app');
     </script>

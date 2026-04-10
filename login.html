@@ -297,6 +297,7 @@
                             realName: userData.real_name,
                             role: userData.role,
                             canTransfer: userData.can_transfer === true,
+                            canViewFinance: userData.can_view_finance === true,
                             units: units
                         }));
 
@@ -321,6 +322,40 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 const urlUsername = urlParams.get('username');
                 const urlPassword = urlParams.get('password');
+
+                const checkLoginStatus = () => {
+                    const currentUserStr = localStorage.getItem('currentUser');
+                    if (currentUserStr) {
+                        try {
+                            const currentUser = JSON.parse(currentUserStr);
+                            if (currentUser && currentUser.id) {
+                                ElementPlus.ElMessage.info('您已登录，正在跳转...');
+                                setTimeout(() => {
+                                    if (currentUser.role === 'admin') {
+                                        window.location.href = 'admin.html';
+                                    } else {
+                                        window.location.href = 'user-view.html';
+                                    }
+                                }, 500);
+                                return true;
+                            }
+                        } catch (e) {
+                            console.error('解析用户信息失败:', e);
+                            localStorage.removeItem('currentUser');
+                        }
+                    }
+                    return false;
+                };
+
+                if (checkLoginStatus()) {
+                    return {
+                        loginFormRef,
+                        loginForm,
+                        rules,
+                        loading,
+                        handleLogin
+                    };
+                }
 
                 if (urlUsername) {
                     loginForm.username = urlUsername;

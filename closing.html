@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>期末结账 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        .page-header {
+            background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .main-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .period-selector {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .period-selector label {
+            font-weight: 600;
+            color: #303133;
+        }
+        .period-status {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status-open {
+            background: #fef0f0;
+            color: #f56c6c;
+        }
+        .status-closed {
+            background: #f0f9eb;
+            color: #67c23a;
+        }
+        .content-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #ebeef5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .checklist {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .checklist-item {
+            background: #f5f7fa;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .checklist-item.completed {
+            background: #f0f9eb;
+        }
+        .checklist-item .icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .checklist-item .icon.pending {
+            background: #fef0f0;
+            color: #f56c6c;
+        }
+        .checklist-item .icon.completed {
+            background: #e1f3d8;
+            color: #67c23a;
+        }
+        .checklist-item .info {
+            flex: 1;
+        }
+        .checklist-item .title {
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 5px;
+        }
+        .checklist-item .desc {
+            font-size: 13px;
+            color: #909399;
+        }
+        .checklist-item .action {
+            margin-left: auto;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            background: #f5f7fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .summary-item .label {
+            color: #909399;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .summary-item .value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .summary-item .value.positive {
+            color: #67c23a;
+        }
+        .summary-item .value.negative {
+            color: #f56c6c;
+        }
+        .closing-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .closing-step {
+            display: flex;
+            gap: 15px;
+        }
+        .step-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #1abc9c;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .step-number.disabled {
+            background: #c0c4cc;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-title {
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 8px;
+        }
+        .step-desc {
+            font-size: 13px;
+            color: #909399;
+            margin-bottom: 10px;
+        }
+        .step-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .audit-trail {
+            margin-top: 20px;
+        }
+        .audit-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px 0;
+            border-bottom: 1px solid #ebeef5;
+        }
+        .audit-item:last-child {
+            border-bottom: none;
+        }
+        .audit-time {
+            color: #909399;
+            font-size: 13px;
+            width: 150px;
+        }
+        .audit-action {
+            flex: 1;
+        }
+        .audit-user {
+            color: #606266;
+            font-size: 13px;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1abc9c;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .warning-box {
+            background: #fdf6ec;
+            border: 1px solid #e6a23c;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .warning-box .icon {
+            color: #e6a23c;
+            font-size: 20px;
+        }
+        .warning-box .text {
+            color: #8a6d3b;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="page-header">
+            <h1>🔄 期末结账</h1>
+            <div class="header-actions">
+                <button class="back-btn" @click="goBack">← 返回主页</button>
+            </div>
+        </div>
+
+        <div class="main-container">
+            <div class="period-selector">
+                <label>会计期间：</label>
+                <el-date-picker
+                    v-model="selectedPeriod"
+                    type="month"
+                    placeholder="选择期间"
+                    @change="loadPeriodData"
+                    style="width: 150px;"
+                ></el-date-picker>
+                <div class="period-status">
+                    <span>当前状态：</span>
+                    <span :class="['status-badge', periodStatus === 'closed' ? 'status-closed' : 'status-open']">
+                        {{ periodStatus === 'closed' ? '已结账' : '未结账' }}
+                    </span>
+                </div>
+                <el-button v-if="periodStatus === 'open'" type="primary" @click="startClosing" :disabled="!canClose">
+                    🔒 执行结账
+                </el-button>
+                <el-button v-if="periodStatus === 'closed'" type="warning" @click="reopenPeriod">
+                    🔓 反结账
+                </el-button>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>结账检查清单</h3>
+                    <el-button @click="runAllChecks">🔍 执行全部检查</el-button>
+                </div>
+                <div class="card-body">
+                    <div class="checklist">
+                        <div class="checklist-item" :class="{ completed: checks.allVouchersPosted }">
+                            <div class="icon" :class="checks.allVouchersPosted ? 'completed' : 'pending'">
+                                {{ checks.allVouchersPosted ? '✓' : '!' }}
+                            </div>
+                            <div class="info">
+                                <div class="title">凭证审核</div>
+                                <div class="desc">所有凭证已审核记账</div>
+                            </div>
+                            <div class="action">
+                                <el-button size="small" @click="checkVouchers">检查</el-button>
+                            </div>
+                        </div>
+                        <div class="checklist-item" :class="{ completed: checks.reconciliationDone }">
+                            <div class="icon" :class="checks.reconciliationDone ? 'completed' : 'pending'">
+                                {{ checks.reconciliationDone ? '✓' : '!' }}
+                            </div>
+                            <div class="info">
+                                <div class="title">银行对账</div>
+                                <div class="desc">银行账户已对账</div>
+                            </div>
+                            <div class="action">
+                                <el-button size="small" @click="checkReconciliation">检查</el-button>
+                            </div>
+                        </div>
+                        <div class="checklist-item" :class="{ completed: checks.inventoryChecked }">
+                            <div class="icon" :class="checks.inventoryChecked ? 'completed' : 'pending'">
+                                {{ checks.inventoryChecked ? '✓' : '!' }}
+                            </div>
+                            <div class="info">
+                                <div class="title">存货盘点</div>
+                                <div class="desc">存货已盘点核对</div>
+                            </div>
+                            <div class="action">
+                                <el-button size="small" @click="checkInventory">检查</el-button>
+                            </div>
+                        </div>
+                        <div class="checklist-item" :class="{ completed: checks.receivablesCleared }">
+                            <div class="icon" :class="checks.receivablesCleared ? 'completed' : 'pending'">
+                                {{ checks.receivablesCleared ? '✓' : '!' }}
+                            </div>
+                            <div class="info">
+                                <div class="title">应收账款核对</div>
+                                <div class="desc">应收账款已核对确认</div>
+                            </div>
+                            <div class="action">
+                                <el-button size="small" @click="checkReceivables">检查</el-button>
+                            </div>
+                        </div>
+                        <div class="checklist-item" :class="{ completed: checks.payablesCleared }">
+                            <div class="icon" :class="checks.payablesCleared ? 'completed' : 'pending'">
+                                {{ checks.payablesCleared ? '✓' : '!' }}
+                            </div>
+                            <div class="info">
+                                <div class="title">应付账款核对</div>
+                                <div class="desc">应付账款已核对确认</div>
+                            </div>
+                            <div class="action">
+                                <el-button size="small" @click="checkPayables">检查</el-button>
+                            </div>
+                        </div>
+                        <div class="checklist-item" :class="{ completed: checks.taxFiled }">
+                            <div class="icon" :class="checks.taxFiled ? 'completed' : 'pending'">
+                                {{ checks.taxFiled ? '✓' : '!' }}
+                            </div>
+                            <div class="info">
+                                <div class="title">税务申报</div>
+                                <div class="desc">当期税款已申报缴纳</div>
+                            </div>
+                            <div class="action">
+                                <el-button size="small" @click="checkTax">检查</el-button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>期末汇总</h3>
+                    <el-button @click="exportToExcel">📥 导出Excel</el-button>
+                </div>
+                <div class="card-body">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="label">本期收入</div>
+                            <div class="value positive">¥{{ formatNumber(summary.revenue) }}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">本期成本</div>
+                            <div class="value negative">¥{{ formatNumber(summary.cost) }}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">本期费用</div>
+                            <div class="value negative">¥{{ formatNumber(summary.expenses) }}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">本期利润</div>
+                            <div class="value" :class="summary.profit >= 0 ? 'positive' : 'negative'">
+                                ¥{{ formatNumber(summary.profit) }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <el-table :data="accountBalances" style="width: 100%" v-loading="loading">
+                        <el-table-column prop="account_code" label="科目编码" width="120"></el-table-column>
+                        <el-table-column prop="account_name" label="科目名称" width="200"></el-table-column>
+                        <el-table-column label="期初余额" width="150" align="right">
+                            <template #default="{ row }">
+                                ¥{{ formatNumber(row.opening_balance) }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="本期借方" width="150" align="right">
+                            <template #default="{ row }">
+                                ¥{{ formatNumber(row.debit_amount) }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="本期贷方" width="150" align="right">
+                            <template #default="{ row }">
+                                ¥{{ formatNumber(row.credit_amount) }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="期末余额" width="150" align="right">
+                            <template #default="{ row }">
+                                <span style="font-weight: 600;">¥{{ formatNumber(row.closing_balance) }}</span>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>结账流程</h3>
+                </div>
+                <div class="card-body">
+                    <div class="warning-box" v-if="!canClose">
+                        <span class="icon">⚠️</span>
+                        <span class="text">请先完成所有结账检查项目后再执行结账操作</span>
+                    </div>
+                    
+                    <div class="closing-steps">
+                        <div class="closing-step">
+                            <div class="step-number" :class="{ disabled: !checks.allVouchersPosted }">1</div>
+                            <div class="step-content">
+                                <div class="step-title">审核本期凭证</div>
+                                <div class="step-desc">确保所有会计凭证已审核、记账</div>
+                                <div class="step-actions">
+                                    <el-button size="small" @click="checkVouchers" :disabled="periodStatus === 'closed'">
+                                        执行检查
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="closing-step">
+                            <div class="step-number" :class="{ disabled: !checks.reconciliationDone }">2</div>
+                            <div class="step-content">
+                                <div class="step-title">银行对账</div>
+                                <div class="step-desc">核对银行账户余额，确保账实相符</div>
+                                <div class="step-actions">
+                                    <el-button size="small" @click="checkReconciliation" :disabled="periodStatus === 'closed'">
+                                        执行检查
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="closing-step">
+                            <div class="step-number" :class="{ disabled: !checks.inventoryChecked }">3</div>
+                            <div class="step-content">
+                                <div class="step-title">存货盘点</div>
+                                <div class="step-desc">完成存货盘点，处理盘盈盘亏</div>
+                                <div class="step-actions">
+                                    <el-button size="small" @click="checkInventory" :disabled="periodStatus === 'closed'">
+                                        执行检查
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="closing-step">
+                            <div class="step-number" :class="{ disabled: !checks.taxFiled }">4</div>
+                            <div class="step-content">
+                                <div class="step-title">税务处理</div>
+                                <div class="step-desc">计算并申报当期各项税费</div>
+                                <div class="step-actions">
+                                    <el-button size="small" @click="checkTax" :disabled="periodStatus === 'closed'">
+                                        执行检查
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="closing-step">
+                            <div class="step-number" :class="{ disabled: !canClose }">5</div>
+                            <div class="step-content">
+                                <div class="step-title">期末结转</div>
+                                <div class="step-desc">自动生成损益结转凭证，结转本期损益</div>
+                                <div class="step-actions">
+                                    <el-button size="small" type="primary" @click="generateClosingEntries" :disabled="!canClose || periodStatus === 'closed'">
+                                        生成结转凭证
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="closing-step">
+                            <div class="step-number" :class="{ disabled: periodStatus === 'closed' }">6</div>
+                            <div class="step-content">
+                                <div class="step-title">结账确认</div>
+                                <div class="step-desc">确认结账，锁定本期会计数据</div>
+                                <div class="step-actions">
+                                    <el-button size="small" type="success" @click="confirmClosing" :disabled="!canClose || periodStatus === 'closed'">
+                                        确认结账
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>操作记录</h3>
+                </div>
+                <div class="card-body">
+                    <div class="audit-trail">
+                        <div class="audit-item" v-for="record in auditRecords" :key="record.id">
+                            <div class="audit-time">{{ record.created_at }}</div>
+                            <div class="audit-action">{{ record.action }}</div>
+                            <div class="audit-user">{{ record.operator }}</div>
+                        </div>
+                        <div v-if="auditRecords.length === 0" style="text-align: center; color: #909399; padding: 20px;">
+                            暂无操作记录
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <el-dialog v-model="closingDialogVisible" title="确认结账" width="400px">
+            <p style="margin-bottom: 15px;">您确定要对以下期间执行结账操作吗？</p>
+            <p style="font-size: 18px; font-weight: 600; text-align: center;">{{ selectedPeriod?.toISOString().slice(0, 7) }}</p>
+            <p style="margin-top: 15px; color: #e6a23c;">⚠️ 结账后将无法修改本期数据，请确认所有数据无误。</p>
+            <template #footer>
+                <el-button @click="closingDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="executeClosing" :loading="saving">确认结账</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="reopenDialogVisible" title="反结账确认" width="400px">
+            <p style="margin-bottom: 15px;">您确定要对以下期间执行反结账操作吗？</p>
+            <p style="font-size: 18px; font-weight: 600; text-align: center;">{{ selectedPeriod?.toISOString().slice(0, 7) }}</p>
+            <p style="margin-top: 15px; color: #f56c6c;">⚠️ 反结账将重新开放本期数据，请谨慎操作。</p>
+            <template #footer>
+                <el-button @click="reopenDialogVisible = false">取消</el-button>
+                <el-button type="warning" @click="executeReopen" :loading="saving">确认反结账</el-button>
+            </template>
+        </el-dialog>
+
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://likgolefqrhntbiscxdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+        const db = createClient(supabaseUrl, supabaseKey);
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const saving = ref(false);
+                const selectedPeriod = ref(new Date());
+                const periodStatus = ref('open');
+                const closingDialogVisible = ref(false);
+                const reopenDialogVisible = ref(false);
+
+                const checks = reactive({
+                    allVouchersPosted: false,
+                    reconciliationDone: false,
+                    inventoryChecked: false,
+                    receivablesCleared: false,
+                    payablesCleared: false,
+                    taxFiled: false
+                });
+
+                const summary = reactive({
+                    revenue: 0,
+                    cost: 0,
+                    expenses: 0,
+                    profit: 0
+                });
+
+                const accountBalances = ref([]);
+                const auditRecords = ref([]);
+
+                const canClose = computed(() => {
+                    return checks.allVouchersPosted && 
+                           checks.reconciliationDone && 
+                           checks.inventoryChecked && 
+                           checks.receivablesCleared && 
+                           checks.payablesCleared && 
+                           checks.taxFiled;
+                });
+
+                const loadPeriodData = async () => {
+                    loading.value = true;
+                    try {
+                        const period = selectedPeriod.value.toISOString().slice(0, 7);
+                        
+                        const { data: periodData, error: periodError } = await db
+                            .from('accounting_periods')
+                            .select('*')
+                            .eq('period', period)
+                            .single();
+
+                        if (periodData) {
+                            periodStatus.value = periodData.status || 'open';
+                            if (periodData.checks) {
+                                Object.assign(checks, periodData.checks);
+                            }
+                        } else {
+                            periodStatus.value = 'open';
+                            Object.keys(checks).forEach(k => checks[k] = false);
+                        }
+
+                        await loadSummary();
+                        await loadAccountBalances();
+                        await loadAuditRecords();
+                    } catch (e) {
+                        console.error('加载期间数据失败:', e);
+                        periodStatus.value = 'open';
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadSummary = async () => {
+                    try {
+                        const year = selectedPeriod.value.getFullYear();
+                        const month = selectedPeriod.value.getMonth() + 1;
+                        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+                        const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+
+                        const { data: vouchers, error } = await db
+                            .from('vouchers')
+                            .select('*, voucher_items(*)')
+                            .gte('voucher_date', startDate)
+                            .lte('voucher_date', endDate)
+                            .eq('status', 2);
+
+                        if (!error && vouchers) {
+                            summary.revenue = 0;
+                            summary.cost = 0;
+                            summary.expenses = 0;
+
+                            vouchers.forEach(v => {
+                                (v.voucher_items || []).forEach(item => {
+                                    if (item.subject_code?.startsWith('6')) {
+                                        summary.revenue += item.credit_amount || 0;
+                                    } else if (item.subject_code?.startsWith('5')) {
+                                        summary.cost += item.debit_amount || 0;
+                                    } else if (item.subject_code?.startsWith('660')) {
+                                        summary.expenses += item.debit_amount || 0;
+                                    }
+                                });
+                            });
+
+                            summary.profit = summary.revenue - summary.cost - summary.expenses;
+                        }
+                    } catch (e) {
+                        console.error('加载汇总数据失败:', e);
+                    }
+                };
+
+                const loadAccountBalances = async () => {
+                    try {
+                        const { data, error } = await db
+                            .from('account_balances')
+                            .select('*')
+                            .eq('period', selectedPeriod.value.toISOString().slice(0, 7))
+                            .order('account_code');
+
+                        if (!error && data) {
+                            accountBalances.value = data;
+                        } else {
+                            accountBalances.value = [];
+                        }
+                    } catch (e) {
+                        console.error('加载科目余额失败:', e);
+                        accountBalances.value = [];
+                    }
+                };
+
+                const loadAuditRecords = async () => {
+                    try {
+                        const period = selectedPeriod.value.toISOString().slice(0, 7);
+                        const { data, error } = await db
+                            .from('closing_audit_log')
+                            .select('*')
+                            .eq('period', period)
+                            .order('created_at', { ascending: false });
+
+                        if (!error && data) {
+                            auditRecords.value = data;
+                        } else {
+                            auditRecords.value = [];
+                        }
+                    } catch (e) {
+                        console.error('加载审计记录失败:', e);
+                        auditRecords.value = [];
+                    }
+                };
+
+                const runAllChecks = async () => {
+                    loading.value = true;
+                    try {
+                        await checkVouchers();
+                        await checkReconciliation();
+                        await checkInventory();
+                        await checkReceivables();
+                        await checkPayables();
+                        await checkTax();
+                        
+                        ElementPlus.ElMessage.success('所有检查已完成');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const checkVouchers = async () => {
+                    try {
+                        const year = selectedPeriod.value.getFullYear();
+                        const month = selectedPeriod.value.getMonth() + 1;
+                        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+                        const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+
+                        const { data: unposted, error } = await db
+                            .from('vouchers')
+                            .select('count')
+                            .gte('voucher_date', startDate)
+                            .lte('voucher_date', endDate)
+                            .neq('status', 2);
+
+                        if (!error) {
+                            checks.allVouchersPosted = (unposted?.length || 0) === 0;
+                            if (!checks.allVouchersPosted) {
+                                ElementPlus.ElMessage.warning('存在未审核的凭证，请先审核');
+                            }
+                        }
+                        await saveChecks();
+                    } catch (e) {
+                        console.error('检查凭证失败:', e);
+                    }
+                };
+
+                const checkReconciliation = async () => {
+                    checks.reconciliationDone = true;
+                    await saveChecks();
+                };
+
+                const checkInventory = async () => {
+                    checks.inventoryChecked = true;
+                    await saveChecks();
+                };
+
+                const checkReceivables = async () => {
+                    checks.receivablesCleared = true;
+                    await saveChecks();
+                };
+
+                const checkPayables = async () => {
+                    checks.payablesCleared = true;
+                    await saveChecks();
+                };
+
+                const checkTax = async () => {
+                    checks.taxFiled = true;
+                    await saveChecks();
+                };
+
+                const saveChecks = async () => {
+                    try {
+                        const period = selectedPeriod.value.toISOString().slice(0, 7);
+                        await db
+                            .from('accounting_periods')
+                            .upsert({
+                                period: period,
+                                checks: { ...checks },
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'period' });
+                    } catch (e) {
+                        console.error('保存检查状态失败:', e);
+                    }
+                };
+
+                const generateClosingEntries = async () => {
+                    saving.value = true;
+                    try {
+                        const period = selectedPeriod.value.toISOString().slice(0, 7);
+                        
+                        const { error } = await db
+                            .from('vouchers')
+                            .insert({
+                                voucher_no: `JZ-${period}-001`,
+                                voucher_date: `${period}-${new Date(selectedPeriod.value.getFullYear(), selectedPeriod.value.getMonth() + 1, 0).getDate()}`,
+                                voucher_type: '结转',
+                                description: `${period}损益结转凭证`,
+                                status: 2,
+                                total_debit: summary.cost + summary.expenses,
+                                total_credit: summary.revenue,
+                                created_at: new Date().toISOString()
+                            });
+
+                        if (error) throw error;
+
+                        await addAuditRecord('生成结转凭证', '系统');
+                        ElementPlus.ElMessage.success('结转凭证已生成');
+                    } catch (e) {
+                        console.error('生成结转凭证失败:', e);
+                        ElementPlus.ElMessage.error('生成结转凭证失败');
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                const startClosing = () => {
+                    closingDialogVisible.value = true;
+                };
+
+                const confirmClosing = () => {
+                    closingDialogVisible.value = true;
+                };
+
+                const executeClosing = async () => {
+                    saving.value = true;
+                    try {
+                        const period = selectedPeriod.value.toISOString().slice(0, 7);
+                        
+                        const { error } = await db
+                            .from('accounting_periods')
+                            .upsert({
+                                period: period,
+                                status: 'closed',
+                                checks: { ...checks },
+                                closed_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'period' });
+
+                        if (error) throw error;
+
+                        await addAuditRecord('执行结账', '管理员');
+                        
+                        periodStatus.value = 'closed';
+                        closingDialogVisible.value = false;
+                        ElementPlus.ElMessage.success('结账成功');
+                    } catch (e) {
+                        console.error('结账失败:', e);
+                        ElementPlus.ElMessage.error('结账失败');
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                const reopenPeriod = () => {
+                    reopenDialogVisible.value = true;
+                };
+
+                const executeReopen = async () => {
+                    saving.value = true;
+                    try {
+                        const period = selectedPeriod.value.toISOString().slice(0, 7);
+                        
+                        const { error } = await db
+                            .from('accounting_periods')
+                            .update({
+                                status: 'open',
+                                reopened_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('period', period);
+
+                        if (error) throw error;
+
+                        await addAuditRecord('反结账', '管理员');
+                        
+                        periodStatus.value = 'open';
+                        reopenDialogVisible.value = false;
+                        ElementPlus.ElMessage.success('反结账成功');
+                    } catch (e) {
+                        console.error('反结账失败:', e);
+                        ElementPlus.ElMessage.error('反结账失败');
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                const addAuditRecord = async (action, operator) => {
+                    try {
+                        await db
+                            .from('closing_audit_log')
+                            .insert({
+                                period: selectedPeriod.value.toISOString().slice(0, 7),
+                                action: action,
+                                operator: operator,
+                                created_at: new Date().toISOString()
+                            });
+                        
+                        await loadAuditRecords();
+                    } catch (e) {
+                        console.error('添加审计记录失败:', e);
+                    }
+                };
+
+                const formatNumber = (num) => {
+                    if (num === null || num === undefined) return '0.00';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                const exportToExcel = () => {
+                    const data = accountBalances.value.map(b => ({
+                        '科目编码': b.account_code,
+                        '科目名称': b.account_name,
+                        '期初余额': b.opening_balance,
+                        '本期借方': b.debit_amount,
+                        '本期贷方': b.credit_amount,
+                        '期末余额': b.closing_balance
+                    }));
+                    
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '科目余额');
+                    XLSX.writeFile(wb, `期末结账_${selectedPeriod.value.toISOString().slice(0, 7)}.xlsx`);
+                };
+
+                const goBack = () => {
+                    window.location.href = 'user-view.html';
+                };
+
+                onMounted(() => {
+                    loadPeriodData();
+                });
+
+                return {
+                    loading,
+                    saving,
+                    selectedPeriod,
+                    periodStatus,
+                    closingDialogVisible,
+                    reopenDialogVisible,
+                    checks,
+                    summary,
+                    accountBalances,
+                    auditRecords,
+                    canClose,
+                    loadPeriodData,
+                    runAllChecks,
+                    checkVouchers,
+                    checkReconciliation,
+                    checkInventory,
+                    checkReceivables,
+                    checkPayables,
+                    checkTax,
+                    generateClosingEntries,
+                    startClosing,
+                    confirmClosing,
+                    executeClosing,
+                    reopenPeriod,
+                    executeReopen,
+                    formatNumber,
+                    exportToExcel,
+                    goBack
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                app.component(key, component);
+            }
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

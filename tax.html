@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>税务管理 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        .page-header {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .main-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        .stat-card .label {
+            color: #909399;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .stat-card .value {
+            font-size: 22px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .stat-card.warning .value {
+            color: #e6a23c;
+        }
+        .stat-card.danger .value {
+            color: #f56c6c;
+        }
+        .stat-card.success .value {
+            color: #67c23a;
+        }
+        .content-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #ebeef5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .tax-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tax-tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #f5f7fa;
+            color: #606266;
+            transition: all 0.3s;
+        }
+        .tax-tab.active {
+            background: #3498db;
+            color: white;
+        }
+        .tax-tab:hover:not(.active) {
+            background: #e9ecef;
+        }
+        .tax-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .tax-summary-item {
+            background: #f5f7fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .tax-summary-item .title {
+            color: #909399;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .tax-summary-item .amount {
+            font-size: 24px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .tax-summary-item .sub {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 5px;
+        }
+        .chart-container {
+            height: 300px;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .amount-cell {
+            text-align: right;
+            font-family: monospace;
+        }
+        .status-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .status-pending {
+            background: #fef0f0;
+            color: #f56c6c;
+        }
+        .status-paid {
+            background: #f0f9eb;
+            color: #67c23a;
+        }
+        .status-filed {
+            background: #ecf5ff;
+            color: #409eff;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .tax-form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .invoice-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="page-header">
+            <h1>📋 税务管理</h1>
+            <div class="header-actions">
+                <button class="back-btn" @click="goBack">← 返回主页</button>
+            </div>
+        </div>
+
+        <div class="main-container">
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <div class="label">本月应交增值税</div>
+                    <div class="value">¥{{ formatNumber(taxSummary.vat) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">本月应交附加税</div>
+                    <div class="value">¥{{ formatNumber(taxSummary.surcharge) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">本月应交所得税</div>
+                    <div class="value">¥{{ formatNumber(taxSummary.incomeTax) }}</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="label">待申报税额</div>
+                    <div class="value">¥{{ formatNumber(taxSummary.pending) }}</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="label">已缴税额</div>
+                    <div class="value">¥{{ formatNumber(taxSummary.paid) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">进项税额</div>
+                    <div class="value">¥{{ formatNumber(taxSummary.inputTax) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">销项税额</div>
+                    <div class="value">¥{{ formatNumber(taxSummary.outputTax) }}</div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>税务管理</h3>
+                    <div>
+                        <el-date-picker
+                            v-model="selectedMonth"
+                            type="month"
+                            placeholder="选择月份"
+                            @change="loadTaxData"
+                            style="width: 150px; margin-right: 10px;"
+                        ></el-date-picker>
+                        <el-button type="primary" @click="showTaxCalcDialog">🧮 税金计算</el-button>
+                        <el-button type="success" @click="showTaxPaymentDialog">💰 税款缴纳</el-button>
+                        <el-button @click="exportToExcel">📥 导出Excel</el-button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="tax-tabs">
+                        <div class="tax-tab" :class="{ active: activeTab === 'overview' }" @click="activeTab = 'overview'">税务概览</div>
+                        <div class="tax-tab" :class="{ active: activeTab === 'vat' }" @click="activeTab = 'vat'">增值税</div>
+                        <div class="tax-tab" :class="{ active: activeTab === 'surtax' }" @click="activeTab = 'surtax'">附加税</div>
+                        <div class="tax-tab" :class="{ active: activeTab === 'income' }" @click="activeTab = 'income'">企业所得税</div>
+                        <div class="tax-tab" :class="{ active: activeTab === 'invoices' }" @click="activeTab = 'invoices'">发票管理</div>
+                        <div class="tax-tab" :class="{ active: activeTab === 'records' }" @click="activeTab = 'records'">缴税记录</div>
+                    </div>
+
+                    <div v-show="activeTab === 'overview'">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="margin-bottom: 15px;">税种构成</h4>
+                                <div class="chart-container" ref="pieChartRef"></div>
+                            </div>
+                            <div>
+                                <h4 style="margin-bottom: 15px;">税负趋势（近6个月）</h4>
+                                <div class="chart-container" ref="trendChartRef"></div>
+                            </div>
+                        </div>
+                        <div class="tax-summary" style="margin-top: 20px;">
+                            <div class="tax-summary-item">
+                                <div class="title">增值税</div>
+                                <div class="amount">¥{{ formatNumber(taxSummary.vat) }}</div>
+                                <div class="sub">销项 - 进项</div>
+                            </div>
+                            <div class="tax-summary-item">
+                                <div class="title">城市维护建设税</div>
+                                <div class="amount">¥{{ formatNumber(taxSummary.cityTax) }}</div>
+                                <div class="sub">增值税 × 7%</div>
+                            </div>
+                            <div class="tax-summary-item">
+                                <div class="title">教育费附加</div>
+                                <div class="amount">¥{{ formatNumber(taxSummary.eduTax) }}</div>
+                                <div class="sub">增值税 × 3%</div>
+                            </div>
+                            <div class="tax-summary-item">
+                                <div class="title">地方教育附加</div>
+                                <div class="amount">¥{{ formatNumber(taxSummary.localEduTax) }}</div>
+                                <div class="sub">增值税 × 2%</div>
+                            </div>
+                            <div class="tax-summary-item">
+                                <div class="title">企业所得税</div>
+                                <div class="amount">¥{{ formatNumber(taxSummary.incomeTax) }}</div>
+                                <div class="sub">利润 × 25%</div>
+                            </div>
+                            <div class="tax-summary-item">
+                                <div class="title">印花税</div>
+                                <div class="amount">¥{{ formatNumber(taxSummary.stampTax) }}</div>
+                                <div class="sub">合同金额 × 税率</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="activeTab === 'vat'">
+                        <div class="filter-bar">
+                            <el-date-picker
+                                v-model="vatDateRange"
+                                type="daterange"
+                                range-separator="至"
+                                start-placeholder="开始日期"
+                                end-placeholder="结束日期"
+                                style="width: 260px"
+                            ></el-date-picker>
+                        </div>
+                        <el-table :data="vatRecords" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="period" label="税款所属期" width="120"></el-table-column>
+                            <el-table-column label="销项税额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.output_tax) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="进项税额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.input_tax) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="应纳税额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.tax_due) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="状态" width="100" align="center">
+                                <template #default="{ row }">
+                                    <span :class="['status-tag', row.status === 'paid' ? 'status-paid' : 'status-pending']">
+                                        {{ row.status === 'paid' ? '已缴纳' : '待缴纳' }}
+                                    </span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="payment_date" label="缴纳日期" width="110"></el-table-column>
+                        </el-table>
+                    </div>
+
+                    <div v-show="activeTab === 'surtax'">
+                        <el-table :data="surtaxRecords" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="period" label="税款所属期" width="120"></el-table-column>
+                            <el-table-column prop="tax_type" label="税种" width="150"></el-table-column>
+                            <el-table-column label="计税依据" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.tax_base) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="tax_rate" label="税率" width="100" align="center">
+                                <template #default="{ row }">
+                                    {{ (row.tax_rate * 100).toFixed(1) }}%
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="应纳税额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.tax_amount) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="状态" width="100" align="center">
+                                <template #default="{ row }">
+                                    <span :class="['status-tag', row.status === 'paid' ? 'status-paid' : 'status-pending']">
+                                        {{ row.status === 'paid' ? '已缴纳' : '待缴纳' }}
+                                    </span>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </div>
+
+                    <div v-show="activeTab === 'income'">
+                        <el-table :data="incomeTaxRecords" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="period" label="税款所属期" width="120"></el-table-column>
+                            <el-table-column label="营业收入" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.revenue) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="营业成本" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.cost) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="利润总额" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.profit) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="tax_rate" label="税率" width="100" align="center">
+                                <template #default="{ row }">
+                                    {{ (row.tax_rate * 100).toFixed(1) }}%
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="应纳税额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.tax_amount) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="状态" width="100" align="center">
+                                <template #default="{ row }">
+                                    <span :class="['status-tag', row.status === 'paid' ? 'status-paid' : 'status-pending']">
+                                        {{ row.status === 'paid' ? '已缴纳' : '待缴纳' }}
+                                    </span>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </div>
+
+                    <div v-show="activeTab === 'invoices'">
+                        <div class="filter-bar">
+                            <el-select v-model="invoiceType" placeholder="发票类型" clearable style="width: 150px">
+                                <el-option label="全部" value=""></el-option>
+                                <el-option label="销项发票" value="output"></el-option>
+                                <el-option label="进项发票" value="input"></el-option>
+                            </el-select>
+                            <el-button type="primary" @click="showInvoiceDialog">➕ 新增发票</el-button>
+                        </div>
+                        <el-table :data="filteredInvoices" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="invoice_no" label="发票号码" width="150"></el-table-column>
+                            <el-table-column prop="invoice_type" label="类型" width="100">
+                                <template #default="{ row }">
+                                    {{ row.invoice_type === 'output' ? '销项' : '进项' }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="counterparty" label="对方单位" width="180"></el-table-column>
+                            <el-table-column label="金额（不含税）" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.amount) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="tax_rate" label="税率" width="80" align="center">
+                                <template #default="{ row }">
+                                    {{ (row.tax_rate * 100).toFixed(0) }}%
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="税额" width="120" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.tax_amount) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="invoice_date" label="开票日期" width="110"></el-table-column>
+                            <el-table-column label="操作" width="100">
+                                <template #default="{ row }">
+                                    <el-button type="danger" link size="small" @click="deleteInvoice(row)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </div>
+
+                    <div v-show="activeTab === 'records'">
+                        <el-table :data="paymentRecords" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="payment_no" label="缴款书号" width="150"></el-table-column>
+                            <el-table-column prop="tax_type" label="税种" width="150"></el-table-column>
+                            <el-table-column prop="period" label="税款所属期" width="120"></el-table-column>
+                            <el-table-column label="缴纳金额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.amount) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="payment_date" label="缴纳日期" width="110"></el-table-column>
+                            <el-table-column prop="payment_method" label="缴纳方式" width="100"></el-table-column>
+                            <el-table-column prop="remark" label="备注"></el-table-column>
+                        </el-table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <el-dialog v-model="taxCalcDialogVisible" title="税金计算" width="600px">
+            <el-form label-width="120px">
+                <el-form-item label="税款所属期">
+                    <el-date-picker v-model="calcPeriod" type="month" placeholder="选择月份" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-divider>增值税计算</el-divider>
+                <el-form-item label="销项税额">
+                    <el-input-number v-model="calcForm.output_tax" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="进项税额">
+                    <el-input-number v-model="calcForm.input_tax" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="应交增值税">
+                    <span style="font-size: 18px; font-weight: 600; color: #f56c6c;">
+                        ¥{{ formatNumber(Math.max(0, calcForm.output_tax - calcForm.input_tax)) }}
+                    </span>
+                </el-form-item>
+                <el-divider>附加税计算</el-divider>
+                <el-form-item label="城市维护建设税 (7%)">
+                    <span>¥{{ formatNumber(Math.max(0, calcForm.output_tax - calcForm.input_tax) * 0.07) }}</span>
+                </el-form-item>
+                <el-form-item label="教育费附加 (3%)">
+                    <span>¥{{ formatNumber(Math.max(0, calcForm.output_tax - calcForm.input_tax) * 0.03) }}</span>
+                </el-form-item>
+                <el-form-item label="地方教育附加 (2%)">
+                    <span>¥{{ formatNumber(Math.max(0, calcForm.output_tax - calcForm.input_tax) * 0.02) }}</span>
+                </el-form-item>
+                <el-divider>企业所得税计算</el-divider>
+                <el-form-item label="利润总额">
+                    <el-input-number v-model="calcForm.profit" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="应交企业所得税 (25%)">
+                    <span style="font-size: 18px; font-weight: 600; color: #f56c6c;">
+                        ¥{{ formatNumber(Math.max(0, calcForm.profit * 0.25)) }}
+                    </span>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="taxCalcDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveTaxCalc" :loading="saving">保存计算</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="taxPaymentDialogVisible" title="税款缴纳" width="500px">
+            <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
+                <el-form-item label="税种" prop="tax_type">
+                    <el-select v-model="paymentForm.tax_type" placeholder="选择税种" style="width: 100%">
+                        <el-option label="增值税" value="vat"></el-option>
+                        <el-option label="城市维护建设税" value="city_tax"></el-option>
+                        <el-option label="教育费附加" value="edu_tax"></el-option>
+                        <el-option label="地方教育附加" value="local_edu_tax"></el-option>
+                        <el-option label="企业所得税" value="income_tax"></el-option>
+                        <el-option label="印花税" value="stamp_tax"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="税款所属期" prop="period">
+                    <el-date-picker v-model="paymentForm.period" type="month" placeholder="选择月份" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="缴纳金额" prop="amount">
+                    <el-input-number v-model="paymentForm.amount" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="缴纳日期" prop="payment_date">
+                    <el-date-picker v-model="paymentForm.payment_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="缴款书号">
+                    <el-input v-model="paymentForm.payment_no" placeholder="输入缴款书号"></el-input>
+                </el-form-item>
+                <el-form-item label="缴纳方式">
+                    <el-select v-model="paymentForm.payment_method" style="width: 100%">
+                        <el-option label="银行转账" value="bank"></el-option>
+                        <el-option label="网上申报" value="online"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="paymentForm.remark" type="textarea" :rows="2"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="taxPaymentDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitPayment" :loading="saving">确认缴纳</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="invoiceDialogVisible" title="新增发票" width="500px">
+            <el-form :model="invoiceForm" :rules="invoiceRules" ref="invoiceFormRef" label-width="100px">
+                <el-form-item label="发票类型" prop="invoice_type">
+                    <el-select v-model="invoiceForm.invoice_type" placeholder="选择类型" style="width: 100%">
+                        <el-option label="销项发票" value="output"></el-option>
+                        <el-option label="进项发票" value="input"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="发票号码" prop="invoice_no">
+                    <el-input v-model="invoiceForm.invoice_no" placeholder="输入发票号码"></el-input>
+                </el-form-item>
+                <el-form-item label="对方单位" prop="counterparty">
+                    <el-input v-model="invoiceForm.counterparty" placeholder="输入对方单位名称"></el-input>
+                </el-form-item>
+                <el-form-item label="金额（不含税）" prop="amount">
+                    <el-input-number v-model="invoiceForm.amount" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="税率" prop="tax_rate">
+                    <el-select v-model="invoiceForm.tax_rate" style="width: 100%">
+                        <el-option label="13%" :value="0.13"></el-option>
+                        <el-option label="9%" :value="0.09"></el-option>
+                        <el-option label="6%" :value="0.06"></el-option>
+                        <el-option label="3%" :value="0.03"></el-option>
+                        <el-option label="1%" :value="0.01"></el-option>
+                        <el-option label="0%" :value="0"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="税额">
+                    <span style="font-size: 16px; font-weight: 600;">
+                        ¥{{ formatNumber(invoiceForm.amount * invoiceForm.tax_rate) }}
+                    </span>
+                </el-form-item>
+                <el-form-item label="开票日期" prop="invoice_date">
+                    <el-date-picker v-model="invoiceForm.invoice_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="invoiceDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitInvoice" :loading="saving">确认保存</el-button>
+            </template>
+        </el-dialog>
+
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://likgolefqrhntbiscxdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+        const db = createClient(supabaseUrl, supabaseKey);
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const saving = ref(false);
+                const activeTab = ref('overview');
+                const selectedMonth = ref(new Date());
+                const pieChartRef = ref(null);
+                const trendChartRef = ref(null);
+                
+                const taxCalcDialogVisible = ref(false);
+                const taxPaymentDialogVisible = ref(false);
+                const invoiceDialogVisible = ref(false);
+                const calcPeriod = ref(new Date());
+                const paymentFormRef = ref(null);
+                const invoiceFormRef = ref(null);
+                
+                const invoiceType = ref('');
+                const vatDateRange = ref([]);
+
+                const taxSummary = reactive({
+                    vat: 0,
+                    surcharge: 0,
+                    incomeTax: 0,
+                    pending: 0,
+                    paid: 0,
+                    inputTax: 0,
+                    outputTax: 0,
+                    cityTax: 0,
+                    eduTax: 0,
+                    localEduTax: 0,
+                    stampTax: 0
+                });
+
+                const calcForm = reactive({
+                    output_tax: 0,
+                    input_tax: 0,
+                    profit: 0
+                });
+
+                const paymentForm = reactive({
+                    tax_type: '',
+                    period: new Date(),
+                    amount: 0,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_no: '',
+                    payment_method: 'online',
+                    remark: ''
+                });
+
+                const paymentRules = {
+                    tax_type: [{ required: true, message: '请选择税种', trigger: 'change' }],
+                    period: [{ required: true, message: '请选择税款所属期', trigger: 'change' }],
+                    amount: [{ required: true, message: '请输入缴纳金额', trigger: 'blur' }],
+                    payment_date: [{ required: true, message: '请选择缴纳日期', trigger: 'change' }]
+                };
+
+                const invoiceForm = reactive({
+                    invoice_type: 'output',
+                    invoice_no: '',
+                    counterparty: '',
+                    amount: 0,
+                    tax_rate: 0.13,
+                    invoice_date: new Date().toISOString().split('T')[0]
+                });
+
+                const invoiceRules = {
+                    invoice_type: [{ required: true, message: '请选择发票类型', trigger: 'change' }],
+                    invoice_no: [{ required: true, message: '请输入发票号码', trigger: 'blur' }],
+                    counterparty: [{ required: true, message: '请输入对方单位', trigger: 'blur' }],
+                    amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
+                    invoice_date: [{ required: true, message: '请选择开票日期', trigger: 'change' }]
+                };
+
+                const vatRecords = ref([]);
+                const surtaxRecords = ref([]);
+                const incomeTaxRecords = ref([]);
+                const invoices = ref([]);
+                const paymentRecords = ref([]);
+
+                const filteredInvoices = computed(() => {
+                    if (!invoiceType.value) return invoices.value;
+                    return invoices.value.filter(i => i.invoice_type === invoiceType.value);
+                });
+
+                const loadTaxData = async () => {
+                    loading.value = true;
+                    try {
+                        const year = selectedMonth.value.getFullYear();
+                        const month = selectedMonth.value.getMonth() + 1;
+                        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+                        const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+
+                        const { data: invoiceData, error: invoiceError } = await db
+                            .from('invoices')
+                            .select('*')
+                            .gte('invoice_date', startDate)
+                            .lte('invoice_date', endDate)
+                            .order('invoice_date', { ascending: false });
+
+                        if (!invoiceError && invoiceData) {
+                            invoices.value = invoiceData;
+                            
+                            taxSummary.outputTax = invoiceData.filter(i => i.invoice_type === 'output').reduce((sum, i) => sum + (i.tax_amount || 0), 0);
+                            taxSummary.inputTax = invoiceData.filter(i => i.invoice_type === 'input').reduce((sum, i) => sum + (i.tax_amount || 0), 0);
+                        }
+
+                        taxSummary.vat = Math.max(0, taxSummary.outputTax - taxSummary.inputTax);
+                        taxSummary.cityTax = taxSummary.vat * 0.07;
+                        taxSummary.eduTax = taxSummary.vat * 0.03;
+                        taxSummary.localEduTax = taxSummary.vat * 0.02;
+                        taxSummary.surcharge = taxSummary.cityTax + taxSummary.eduTax + taxSummary.localEduTax;
+
+                        const { data: paymentData, error: paymentError } = await db
+                            .from('tax_payments')
+                            .select('*')
+                            .gte('payment_date', startDate)
+                            .lte('payment_date', endDate)
+                            .order('payment_date', { ascending: false });
+
+                        if (!paymentError && paymentData) {
+                            paymentRecords.value = paymentData;
+                            taxSummary.paid = paymentData.reduce((sum, p) => sum + (p.amount || 0), 0);
+                        }
+
+                        taxSummary.pending = taxSummary.vat + taxSummary.surcharge + taxSummary.incomeTax - taxSummary.paid;
+
+                        await nextTick();
+                        initCharts();
+                    } catch (e) {
+                        console.error('加载税务数据失败:', e);
+                        ElementPlus.ElMessage.error('加载税务数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const initCharts = () => {
+                    if (pieChartRef.value) {
+                        const pieChart = echarts.init(pieChartRef.value);
+                        pieChart.setOption({
+                            tooltip: { trigger: 'item', formatter: '{b}: ¥{c} ({d}%)' },
+                            legend: { bottom: 10 },
+                            series: [{
+                                type: 'pie',
+                                radius: ['40%', '70%'],
+                                avoidLabelOverlap: false,
+                                itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+                                label: { show: false },
+                                emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+                                data: [
+                                    { value: taxSummary.vat, name: '增值税', itemStyle: { color: '#5470c6' } },
+                                    { value: taxSummary.surcharge, name: '附加税', itemStyle: { color: '#91cc75' } },
+                                    { value: taxSummary.incomeTax, name: '企业所得税', itemStyle: { color: '#fac858' } },
+                                    { value: taxSummary.stampTax, name: '印花税', itemStyle: { color: '#ee6666' } }
+                                ].filter(d => d.value > 0)
+                            }]
+                        });
+                    }
+
+                    if (trendChartRef.value) {
+                        const trendChart = echarts.init(trendChartRef.value);
+                        trendChart.setOption({
+                            tooltip: { trigger: 'axis' },
+                            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                            xAxis: { type: 'category', data: [] },
+                            yAxis: { type: 'value', axisLabel: { formatter: '¥{value}' } },
+                            series: [{
+                                data: [],
+                                type: 'line',
+                                smooth: true,
+                                areaStyle: { opacity: 0.3 },
+                                itemStyle: { color: '#3498db' }
+                            }]
+                        });
+                    }
+                };
+
+                const showTaxCalcDialog = () => {
+                    calcForm.output_tax = taxSummary.outputTax;
+                    calcForm.input_tax = taxSummary.inputTax;
+                    calcForm.profit = 0;
+                    taxCalcDialogVisible.value = true;
+                };
+
+                const saveTaxCalc = async () => {
+                    saving.value = true;
+                    try {
+                        const period = calcPeriod.value.toISOString().slice(0, 7);
+                        const vatDue = Math.max(0, calcForm.output_tax - calcForm.input_tax);
+                        
+                        const { error: vatError } = await db
+                            .from('vat_records')
+                            .upsert({
+                                period: period,
+                                output_tax: calcForm.output_tax,
+                                input_tax: calcForm.input_tax,
+                                tax_due: vatDue,
+                                status: 'pending',
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'period' });
+
+                        if (vatError) throw vatError;
+
+                        const surtaxTypes = [
+                            { type: '城市维护建设税', rate: 0.07 },
+                            { type: '教育费附加', rate: 0.03 },
+                            { type: '地方教育附加', rate: 0.02 }
+                        ];
+
+                        for (const st of surtaxTypes) {
+                            await db.from('surtax_records').upsert({
+                                period: period,
+                                tax_type: st.type,
+                                tax_base: vatDue,
+                                tax_rate: st.rate,
+                                tax_amount: vatDue * st.rate,
+                                status: 'pending',
+                                created_at: new Date().toISOString()
+                            }, { onConflict: 'period,tax_type' });
+                        }
+
+                        if (calcForm.profit > 0) {
+                            taxSummary.incomeTax = calcForm.profit * 0.25;
+                            await db.from('income_tax_records').upsert({
+                                period: period,
+                                revenue: 0,
+                                cost: 0,
+                                profit: calcForm.profit,
+                                tax_rate: 0.25,
+                                tax_amount: calcForm.profit * 0.25,
+                                status: 'pending',
+                                created_at: new Date().toISOString()
+                            }, { onConflict: 'period' });
+                        }
+
+                        ElementPlus.ElMessage.success('税金计算已保存');
+                        taxCalcDialogVisible.value = false;
+                        loadTaxData();
+                    } catch (e) {
+                        console.error('保存税金计算失败:', e);
+                        ElementPlus.ElMessage.error('保存税金计算失败');
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                const showTaxPaymentDialog = () => {
+                    paymentForm.tax_type = '';
+                    paymentForm.period = new Date();
+                    paymentForm.amount = 0;
+                    paymentForm.payment_date = new Date().toISOString().split('T')[0];
+                    paymentForm.payment_no = '';
+                    paymentForm.payment_method = 'online';
+                    paymentForm.remark = '';
+                    taxPaymentDialogVisible.value = true;
+                };
+
+                const submitPayment = async () => {
+                    if (!paymentFormRef.value) return;
+                    
+                    await paymentFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        
+                        saving.value = true;
+                        try {
+                            const { error } = await db
+                                .from('tax_payments')
+                                .insert({
+                                    tax_type: paymentForm.tax_type,
+                                    period: paymentForm.period.toISOString().slice(0, 7),
+                                    amount: paymentForm.amount,
+                                    payment_date: paymentForm.payment_date,
+                                    payment_no: paymentForm.payment_no,
+                                    payment_method: paymentForm.payment_method,
+                                    remark: paymentForm.remark,
+                                    created_at: new Date().toISOString()
+                                });
+
+                            if (error) throw error;
+
+                            ElementPlus.ElMessage.success('税款缴纳记录已保存');
+                            taxPaymentDialogVisible.value = false;
+                            loadTaxData();
+                        } catch (e) {
+                            console.error('保存缴纳记录失败:', e);
+                            ElementPlus.ElMessage.error('保存缴纳记录失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const showInvoiceDialog = () => {
+                    invoiceForm.invoice_type = 'output';
+                    invoiceForm.invoice_no = '';
+                    invoiceForm.counterparty = '';
+                    invoiceForm.amount = 0;
+                    invoiceForm.tax_rate = 0.13;
+                    invoiceForm.invoice_date = new Date().toISOString().split('T')[0];
+                    invoiceDialogVisible.value = true;
+                };
+
+                const submitInvoice = async () => {
+                    if (!invoiceFormRef.value) return;
+                    
+                    await invoiceFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        
+                        saving.value = true;
+                        try {
+                            const { error } = await db
+                                .from('invoices')
+                                .insert({
+                                    invoice_type: invoiceForm.invoice_type,
+                                    invoice_no: invoiceForm.invoice_no,
+                                    counterparty: invoiceForm.counterparty,
+                                    amount: invoiceForm.amount,
+                                    tax_rate: invoiceForm.tax_rate,
+                                    tax_amount: invoiceForm.amount * invoiceForm.tax_rate,
+                                    invoice_date: invoiceForm.invoice_date,
+                                    created_at: new Date().toISOString()
+                                });
+
+                            if (error) throw error;
+
+                            ElementPlus.ElMessage.success('发票已保存');
+                            invoiceDialogVisible.value = false;
+                            loadTaxData();
+                        } catch (e) {
+                            console.error('保存发票失败:', e);
+                            ElementPlus.ElMessage.error('保存发票失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const deleteInvoice = async (row) => {
+                    try {
+                        const { error } = await db
+                            .from('invoices')
+                            .delete()
+                            .eq('invoice_id', row.invoice_id);
+
+                        if (error) throw error;
+
+                        ElementPlus.ElMessage.success('发票已删除');
+                        loadTaxData();
+                    } catch (e) {
+                        console.error('删除发票失败:', e);
+                        ElementPlus.ElMessage.error('删除发票失败');
+                    }
+                };
+
+                const formatNumber = (num) => {
+                    if (num === null || num === undefined) return '0.00';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                const exportToExcel = () => {
+                    const data = [
+                        { '税种': '增值税', '金额': taxSummary.vat },
+                        { '税种': '城市维护建设税', '金额': taxSummary.cityTax },
+                        { '税种': '教育费附加', '金额': taxSummary.eduTax },
+                        { '税种': '地方教育附加', '金额': taxSummary.localEduTax },
+                        { '税种': '企业所得税', '金额': taxSummary.incomeTax },
+                        { '税种': '印花税', '金额': taxSummary.stampTax },
+                        { '税种': '合计', '金额': taxSummary.vat + taxSummary.surcharge + taxSummary.incomeTax + taxSummary.stampTax }
+                    ];
+                    
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '税务汇总');
+                    XLSX.writeFile(wb, `税务汇总_${selectedMonth.value.toISOString().slice(0, 7)}.xlsx`);
+                };
+
+                const goBack = () => {
+                    window.location.href = 'user-view.html';
+                };
+
+                onMounted(() => {
+                    loadTaxData();
+                });
+
+                return {
+                    loading,
+                    saving,
+                    activeTab,
+                    selectedMonth,
+                    pieChartRef,
+                    trendChartRef,
+                    taxCalcDialogVisible,
+                    taxPaymentDialogVisible,
+                    invoiceDialogVisible,
+                    calcPeriod,
+                    paymentFormRef,
+                    invoiceFormRef,
+                    invoiceType,
+                    vatDateRange,
+                    taxSummary,
+                    calcForm,
+                    paymentForm,
+                    paymentRules,
+                    invoiceForm,
+                    invoiceRules,
+                    vatRecords,
+                    surtaxRecords,
+                    incomeTaxRecords,
+                    invoices,
+                    paymentRecords,
+                    filteredInvoices,
+                    loadTaxData,
+                    showTaxCalcDialog,
+                    saveTaxCalc,
+                    showTaxPaymentDialog,
+                    submitPayment,
+                    showInvoiceDialog,
+                    submitInvoice,
+                    deleteInvoice,
+                    formatNumber,
+                    exportToExcel,
+                    goBack
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                app.component(key, component);
+            }
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>销售订单 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            min-height: 100vh;
+        }
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: linear-gradient(135deg, #409EFF, #337ecc);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .nav-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            max-width: 600px;
+            flex-wrap: wrap;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-top: 4px solid #409EFF;
+        }
+        .stat-card.success { border-top-color: #67c23a; }
+        .stat-card.warning { border-top-color: #e6a23c; }
+        .stat-card.danger { border-top-color: #f56c6c; }
+        .stat-card.info { border-top-color: #909399; }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+        .dialog-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .order-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .order-items-card {
+            margin-top: 20px;
+        }
+        .order-summary {
+            display: flex;
+            justify-content: flex-end;
+            gap: 40px;
+            padding: 15px 0;
+            border-top: 1px solid #ebeef5;
+            margin-top: 15px;
+        }
+        .summary-item {
+            text-align: right;
+        }
+        .summary-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .summary-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        .summary-value.highlight {
+            color: #f56c6c;
+        }
+        .inventory-select {
+            cursor: pointer;
+        }
+        .inventory-select:hover {
+            background: #f5f7fa;
+        }
+        .status-tag {
+            font-weight: 500;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #409EFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @media (max-width: 768px) {
+            .header {
+                padding: 12px 15px;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .header h1 { font-size: 18px; }
+            .main-content { padding: 12px; }
+            .order-info { grid-template-columns: 1fr; }
+            .search-box { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="app-container">
+            <div class="header">
+                <h1>销售订单管理</h1>
+                <div class="header-actions">
+                    <a href="user-view.html" class="nav-btn">返回主页</a>
+                    <a href="customers.html" class="nav-btn">客户管理</a>
+                    <a href="receivables.html" class="nav-btn">应收账款</a>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="statistics">
+                    <div class="stat-card">
+                        <div class="stat-label">订单总数</div>
+                        <div class="stat-value">{{ statistics.total }}</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-label">待审核</div>
+                        <div class="stat-value">{{ statistics.pending }}</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-label">已完成</div>
+                        <div class="stat-value">{{ statistics.completed }}</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-label">本月销售额</div>
+                        <div class="stat-value">¥{{ formatNumber(statistics.monthlySales) }}</div>
+                    </div>
+                    <div class="stat-card danger">
+                        <div class="stat-label">未收款金额</div>
+                        <div class="stat-value">¥{{ formatNumber(statistics.unpaid) }}</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <el-input 
+                                v-model="searchText" 
+                                placeholder="搜索订单号/客户名称" 
+                                clearable
+                                @input="handleSearch"
+                                style="width: 200px;"
+                            />
+                            <el-date-picker
+                                v-model="dateRange"
+                                type="daterange"
+                                range-separator="至"
+                                start-placeholder="开始日期"
+                                end-placeholder="结束日期"
+                                @change="handleSearch"
+                                style="width: 240px;"
+                            />
+                            <el-select v-model="filterStatus" placeholder="订单状态" clearable @change="handleSearch" style="width: 120px;">
+                                <el-option label="全部" value=""></el-option>
+                                <el-option label="待审核" :value="1"></el-option>
+                                <el-option label="已审核" :value="2"></el-option>
+                                <el-option label="已完成" :value="3"></el-option>
+                                <el-option label="已取消" :value="4"></el-option>
+                            </el-select>
+                            <el-select v-model="filterPayment" placeholder="付款状态" clearable @change="handleSearch" style="width: 120px;">
+                                <el-option label="全部" value=""></el-option>
+                                <el-option label="未付款" :value="1"></el-option>
+                                <el-option label="部分付款" :value="2"></el-option>
+                                <el-option label="已付款" :value="3"></el-option>
+                            </el-select>
+                        </div>
+                        <div class="action-buttons">
+                            <el-button type="primary" @click="openAddDialog">
+                                <el-icon><plus /></el-icon>
+                                新建订单
+                            </el-button>
+                            <el-button @click="exportToExcel">
+                                <el-icon><download /></el-icon>
+                                导出Excel
+                            </el-button>
+                        </div>
+                    </div>
+
+                    <el-table 
+                        :data="filteredOrders" 
+                        stripe 
+                        style="width: 100%"
+                        v-loading="loading"
+                        @row-click="viewOrder"
+                    >
+                        <el-table-column prop="order_no" label="订单编号" width="150" />
+                        <el-table-column prop="customer_name" label="客户名称" min-width="150" />
+                        <el-table-column prop="order_date" label="订单日期" width="110">
+                            <template #default="{ row }">
+                                {{ row.order_date ? row.order_date.substring(0, 10) : '-' }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="total_quantity" label="数量(吨)" width="100" align="right">
+                            <template #default="{ row }">
+                                {{ formatWeight(row.total_quantity) }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="final_amount" label="订单金额" width="120" align="right">
+                            <template #default="{ row }">
+                                ¥{{ formatNumber(row.final_amount) }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="order_status" label="订单状态" width="100" align="center">
+                            <template #default="{ row }">
+                                <el-tag :type="getStatusType(row.order_status)" size="small" class="status-tag">
+                                    {{ getStatusText(row.order_status) }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="payment_status" label="付款状态" width="100" align="center">
+                            <template #default="{ row }">
+                                <el-tag :type="getPaymentStatusType(row.payment_status)" size="small">
+                                    {{ getPaymentStatusText(row.payment_status) }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="salesperson" label="销售员" width="100" />
+                        <el-table-column label="操作" width="200" fixed="right">
+                            <template #default="{ row }">
+                                <el-button 
+                                    v-if="row.order_status === 1" 
+                                    type="success" 
+                                    size="small" 
+                                    link 
+                                    @click.stop="approveOrder(row)"
+                                >审核</el-button>
+                                <el-button type="primary" size="small" link @click.stop="editOrder(row)">编辑</el-button>
+                                <el-button 
+                                    v-if="row.order_status === 2" 
+                                    type="warning" 
+                                    size="small" 
+                                    link 
+                                    @click.stop="completeOrder(row)"
+                                >完成</el-button>
+                                <el-button 
+                                    v-if="row.order_status === 1" 
+                                    type="danger" 
+                                    size="small" 
+                                    link 
+                                    @click.stop="cancelOrder(row)"
+                                >取消</el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+
+                    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                        <el-pagination
+                            v-model:current-page="currentPage"
+                            v-model:page-size="pageSize"
+                            :page-sizes="[10, 20, 50, 100]"
+                            :total="totalOrders"
+                            layout="total, sizes, prev, pager, next, jumper"
+                            @size-change="handleSizeChange"
+                            @current-change="handleCurrentChange"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <el-dialog 
+            v-model="dialogVisible" 
+            :title="isEdit ? '编辑销售订单' : '新建销售订单'" 
+            width="900px"
+            destroy-on-close
+        >
+            <el-form :model="orderForm" :rules="orderRules" ref="orderFormRef" label-width="100px">
+                <div class="order-info">
+                    <el-form-item label="订单编号" prop="order_no">
+                        <el-input v-model="orderForm.order_no" :disabled="true" />
+                    </el-form-item>
+                    <el-form-item label="订单日期" prop="order_date">
+                        <el-date-picker v-model="orderForm.order_date" type="date" placeholder="选择日期" style="width: 100%;" />
+                    </el-form-item>
+                    <el-form-item label="交货日期" prop="delivery_date">
+                        <el-date-picker v-model="orderForm.delivery_date" type="date" placeholder="选择日期" style="width: 100%;" />
+                    </el-form-item>
+                </div>
+                <div class="order-info">
+                    <el-form-item label="客户" prop="customer_id">
+                        <el-select 
+                            v-model="orderForm.customer_id" 
+                            filterable 
+                            placeholder="选择客户" 
+                            style="width: 100%;"
+                            @change="onCustomerChange"
+                        >
+                            <el-option 
+                                v-for="c in customers" 
+                                :key="c.customer_id" 
+                                :label="c.customer_name" 
+                                :value="c.customer_id"
+                            />
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="销售员" prop="salesperson">
+                        <el-input v-model="orderForm.salesperson" placeholder="销售员姓名" />
+                    </el-form-item>
+                    <el-form-item label="付款方式" prop="payment_method">
+                        <el-select v-model="orderForm.payment_method" placeholder="选择付款方式" style="width: 100%;">
+                            <el-option label="现金" value="cash"></el-option>
+                            <el-option label="银行转账" value="bank_transfer"></el-option>
+                            <el-option label="支付宝" value="alipay"></el-option>
+                            <el-option label="微信" value="wechat"></el-option>
+                            <el-option label="月结" value="monthly"></el-option>
+                        </el-select>
+                    </el-form-item>
+                </div>
+                <el-form-item label="备注" prop="remark">
+                    <el-input v-model="orderForm.remark" type="textarea" :rows="2" placeholder="订单备注" />
+                </el-form-item>
+            </el-form>
+
+            <div class="order-items-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="margin: 0;">订单明细</h4>
+                    <el-button type="primary" size="small" @click="addOrderItem">
+                        <el-icon><plus /></el-icon>
+                        添加明细
+                    </el-button>
+                </div>
+                <el-table :data="orderForm.items" stripe border size="small">
+                    <el-table-column label="库存选择" width="200">
+                        <template #default="{ row, $index }">
+                            <el-select 
+                                v-model="row.inventory_id" 
+                                filterable 
+                                placeholder="选择库存"
+                                @change="(val) => onInventorySelect(val, $index)"
+                                style="width: 100%;"
+                            >
+                                <el-option 
+                                    v-for="inv in availableInventory" 
+                                    :key="inv.id" 
+                                    :label="`${inv.batch_no} - ${inv.specification}`" 
+                                    :value="inv.id"
+                                >
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span>{{ inv.batch_no }}</span>
+                                        <span style="color: #999;">{{ inv.weight }}吨</span>
+                                    </div>
+                                </el-option>
+                            </el-select>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="specification" label="规格" width="120" />
+                    <el-table-column prop="material" label="材质" width="80" />
+                    <el-table-column label="数量(吨)" width="120">
+                        <template #default="{ row }">
+                            <el-input-number 
+                                v-model="row.quantity" 
+                                :min="0" 
+                                :precision="3" 
+                                :controls="false"
+                                style="width: 100%;"
+                                @change="calculateItemAmount(row)"
+                            />
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="单价(元/吨)" width="120">
+                        <template #default="{ row }">
+                            <el-input-number 
+                                v-model="row.unit_price" 
+                                :min="0" 
+                                :precision="2" 
+                                :controls="false"
+                                style="width: 100%;"
+                                @change="calculateItemAmount(row)"
+                            />
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="amount" label="金额" width="100" align="right">
+                        <template #default="{ row }">
+                            {{ formatNumber(row.amount) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="税率(%)" width="80">
+                        <template #default="{ row }">
+                            <el-input-number 
+                                v-model="row.tax_rate" 
+                                :min="0" 
+                                :max="100"
+                                :precision="2" 
+                                :controls="false"
+                                style="width: 100%;"
+                                @change="calculateItemAmount(row)"
+                            />
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="tax_amount" label="税额" width="100" align="right">
+                        <template #default="{ row }">
+                            {{ formatNumber(row.tax_amount) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="80" align="center">
+                        <template #default="{ $index }">
+                            <el-button type="danger" size="small" link @click="removeOrderItem($index)">
+                                <el-icon><delete /></el-icon>
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div class="order-summary">
+                    <div class="summary-item">
+                        <div class="summary-label">合计数量</div>
+                        <div class="summary-value">{{ formatWeight(totalQuantity) }} 吨</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">合计金额</div>
+                        <div class="summary-value">¥{{ formatNumber(totalAmount) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">合计税额</div>
+                        <div class="summary-value">¥{{ formatNumber(totalTax) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">订单总额</div>
+                        <div class="summary-value highlight">¥{{ formatNumber(totalAmount + totalTax) }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="dialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="saveOrder" :loading="saving">保存订单</el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="detailDialogVisible" title="订单详情" width="900px">
+            <el-descriptions :column="3" border v-if="currentOrder">
+                <el-descriptions-item label="订单编号">{{ currentOrder.order_no }}</el-descriptions-item>
+                <el-descriptions-item label="客户名称">{{ currentOrder.customer_name }}</el-descriptions-item>
+                <el-descriptions-item label="订单日期">{{ currentOrder.order_date?.substring(0, 10) }}</el-descriptions-item>
+                <el-descriptions-item label="交货日期">{{ currentOrder.delivery_date?.substring(0, 10) || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="销售员">{{ currentOrder.salesperson || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="付款方式">{{ getPaymentMethodText(currentOrder.payment_method) }}</el-descriptions-item>
+                <el-descriptions-item label="订单状态">
+                    <el-tag :type="getStatusType(currentOrder.order_status)" size="small">
+                        {{ getStatusText(currentOrder.order_status) }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="付款状态">
+                    <el-tag :type="getPaymentStatusType(currentOrder.payment_status)" size="small">
+                        {{ getPaymentStatusText(currentOrder.payment_status) }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="创建时间">{{ formatDate(currentOrder.created_at) }}</el-descriptions-item>
+                <el-descriptions-item label="备注" :span="3">{{ currentOrder.remark || '-' }}</el-descriptions-item>
+            </el-descriptions>
+
+            <div style="margin-top: 20px;">
+                <h4 style="margin-bottom: 10px;">订单明细</h4>
+                <el-table :data="orderItems" stripe border size="small">
+                    <el-table-column prop="batch_no" label="批号" width="120" />
+                    <el-table-column prop="specification" label="规格" width="120" />
+                    <el-table-column prop="material" label="材质" width="80" />
+                    <el-table-column prop="quantity" label="数量(吨)" width="100" align="right">
+                        <template #default="{ row }">
+                            {{ formatWeight(row.quantity) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="unit_price" label="单价" width="100" align="right">
+                        <template #default="{ row }">
+                            ¥{{ formatNumber(row.unit_price) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="amount" label="金额" width="100" align="right">
+                        <template #default="{ row }">
+                            ¥{{ formatNumber(row.amount) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="tax_rate" label="税率" width="80" align="right">
+                        <template #default="{ row }">
+                            {{ row.tax_rate }}%
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="tax_amount" label="税额" width="100" align="right">
+                        <template #default="{ row }">
+                            ¥{{ formatNumber(row.tax_amount) }}
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
+
+            <div class="order-summary">
+                <div class="summary-item">
+                    <div class="summary-label">合计数量</div>
+                    <div class="summary-value">{{ formatWeight(currentOrder.total_quantity) }} 吨</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">合计金额</div>
+                    <div class="summary-value">¥{{ formatNumber(currentOrder.total_amount) }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">合计税额</div>
+                    <div class="summary-value">¥{{ formatNumber(currentOrder.tax_amount) }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">订单总额</div>
+                    <div class="summary-value highlight">¥{{ formatNumber(currentOrder.final_amount) }}</div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="detailDialogVisible = false">关闭</el-button>
+                    <el-button 
+                        v-if="currentOrder.order_status === 1" 
+                        type="success" 
+                        @click="approveOrder(currentOrder)"
+                    >审核通过</el-button>
+                    <el-button type="primary" @click="editOrder(currentOrder)">编辑</el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <div v-if="loading" class="loading-overlay">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://likgolefqrhntbiscxdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+        const db = createClient(supabaseUrl, supabaseKey);
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const saving = ref(false);
+                const orders = ref([]);
+                const customers = ref([]);
+                const availableInventory = ref([]);
+                const orderItems = ref([]);
+                const searchText = ref('');
+                const dateRange = ref(null);
+                const filterStatus = ref('');
+                const filterPayment = ref('');
+                const currentPage = ref(1);
+                const pageSize = ref(20);
+                const totalOrders = ref(0);
+                const dialogVisible = ref(false);
+                const detailDialogVisible = ref(false);
+                const isEdit = ref(false);
+                const currentOrder = ref(null);
+                const orderFormRef = ref(null);
+
+                const statistics = reactive({
+                    total: 0,
+                    pending: 0,
+                    completed: 0,
+                    monthlySales: 0,
+                    unpaid: 0
+                });
+
+                const orderForm = reactive({
+                    order_id: null,
+                    order_no: '',
+                    customer_id: null,
+                    customer_name: '',
+                    order_date: new Date(),
+                    delivery_date: null,
+                    salesperson: '',
+                    payment_method: '',
+                    remark: '',
+                    items: []
+                });
+
+                const orderRules = {
+                    customer_id: [
+                        { required: true, message: '请选择客户', trigger: 'change' }
+                    ],
+                    order_date: [
+                        { required: true, message: '请选择订单日期', trigger: 'change' }
+                    ]
+                };
+
+                const filteredOrders = computed(() => {
+                    let result = orders.value;
+                    
+                    if (searchText.value) {
+                        const search = searchText.value.toLowerCase();
+                        result = result.filter(o => 
+                            o.order_no?.toLowerCase().includes(search) ||
+                            o.customer_name?.toLowerCase().includes(search)
+                        );
+                    }
+                    
+                    if (dateRange.value && dateRange.value.length === 2) {
+                        const start = new Date(dateRange.value[0]);
+                        const end = new Date(dateRange.value[1]);
+                        result = result.filter(o => {
+                            const orderDate = new Date(o.order_date);
+                            return orderDate >= start && orderDate <= end;
+                        });
+                    }
+                    
+                    if (filterStatus.value !== '') {
+                        result = result.filter(o => o.order_status === filterStatus.value);
+                    }
+                    
+                    if (filterPayment.value !== '') {
+                        result = result.filter(o => o.payment_status === filterPayment.value);
+                    }
+                    
+                    totalOrders.value = result.length;
+                    
+                    const start = (currentPage.value - 1) * pageSize.value;
+                    const end = start + pageSize.value;
+                    return result.slice(start, end);
+                });
+
+                const totalQuantity = computed(() => {
+                    return orderForm.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+                });
+
+                const totalAmount = computed(() => {
+                    return orderForm.items.reduce((sum, item) => sum + (item.amount || 0), 0);
+                });
+
+                const totalTax = computed(() => {
+                    return orderForm.items.reduce((sum, item) => sum + (item.tax_amount || 0), 0);
+                });
+
+                const loadOrders = async () => {
+                    loading.value = true;
+                    try {
+                        const { data, error } = await db
+                            .from('sales_orders')
+                            .select('*')
+                            .order('order_date', { ascending: false });
+                        
+                        if (error) throw error;
+                        orders.value = data || [];
+                        updateStatistics();
+                    } catch (err) {
+                        console.error('加载订单数据失败:', err);
+                        ElementPlus.ElMessage.error('加载订单数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadCustomers = async () => {
+                    try {
+                        const { data, error } = await db
+                            .from('customers')
+                            .select('customer_id, customer_name, contact_person, credit_limit, current_arrears')
+                            .eq('status', 1)
+                            .order('customer_name');
+                        
+                        if (error) throw error;
+                        customers.value = data || [];
+                    } catch (err) {
+                        console.error('加载客户数据失败:', err);
+                    }
+                };
+
+                const loadInventory = async () => {
+                    try {
+                        const { data, error } = await db
+                            .from('inventory')
+                            .select('id, batch_no, specification, material, weight, unit')
+                            .eq('status', 1)
+                            .order('batch_no');
+                        
+                        if (error) throw error;
+                        availableInventory.value = data || [];
+                    } catch (err) {
+                        console.error('加载库存数据失败:', err);
+                    }
+                };
+
+                const updateStatistics = () => {
+                    const now = new Date();
+                    const currentMonth = now.getMonth();
+                    const currentYear = now.getFullYear();
+                    
+                    statistics.total = orders.value.length;
+                    statistics.pending = orders.value.filter(o => o.order_status === 1).length;
+                    statistics.completed = orders.value.filter(o => o.order_status === 3).length;
+                    
+                    statistics.monthlySales = orders.value
+                        .filter(o => {
+                            const orderDate = new Date(o.order_date);
+                            return orderDate.getMonth() === currentMonth && 
+                                   orderDate.getFullYear() === currentYear &&
+                                   o.order_status !== 4;
+                        })
+                        .reduce((sum, o) => sum + (o.final_amount || 0), 0);
+                    
+                    statistics.unpaid = orders.value
+                        .filter(o => o.payment_status !== 3 && o.order_status !== 4)
+                        .reduce((sum, o) => sum + ((o.final_amount || 0) - (o.paid_amount || 0)), 0);
+                };
+
+                const generateOrderNo = () => {
+                    const date = new Date();
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const random = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+                    return `SO${year}${month}${day}${random}`;
+                };
+
+                const openAddDialog = () => {
+                    isEdit.value = false;
+                    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                    Object.assign(orderForm, {
+                        order_id: null,
+                        order_no: generateOrderNo(),
+                        customer_id: null,
+                        customer_name: '',
+                        order_date: new Date(),
+                        delivery_date: null,
+                        salesperson: userInfo.real_name || '',
+                        payment_method: '',
+                        remark: '',
+                        items: []
+                    });
+                    dialogVisible.value = true;
+                };
+
+                const editOrder = async (row) => {
+                    isEdit.value = true;
+                    
+                    const { data: items, error: itemsError } = await db
+                        .from('sales_order_items')
+                        .select('*')
+                        .eq('order_id', row.order_id);
+                    
+                    if (itemsError) {
+                        ElementPlus.ElMessage.error('加载订单明细失败');
+                        return;
+                    }
+
+                    Object.assign(orderForm, {
+                        order_id: row.order_id,
+                        order_no: row.order_no,
+                        customer_id: row.customer_id,
+                        customer_name: row.customer_name,
+                        order_date: row.order_date,
+                        delivery_date: row.delivery_date,
+                        salesperson: row.salesperson || '',
+                        payment_method: row.payment_method || '',
+                        remark: row.remark || '',
+                        items: (items || []).map(item => ({
+                            item_id: item.item_id,
+                            inventory_id: item.inventory_id,
+                            batch_no: item.batch_no,
+                            product_name: item.product_name,
+                            specification: item.specification,
+                            material: item.material,
+                            quantity: item.quantity,
+                            unit: item.unit,
+                            unit_price: item.unit_price,
+                            amount: item.amount,
+                            tax_rate: item.tax_rate,
+                            tax_amount: item.tax_amount
+                        }))
+                    });
+                    dialogVisible.value = true;
+                };
+
+                const onCustomerChange = (customerId) => {
+                    const customer = customers.value.find(c => c.customer_id === customerId);
+                    if (customer) {
+                        orderForm.customer_name = customer.customer_name;
+                    }
+                };
+
+                const addOrderItem = () => {
+                    orderForm.items.push({
+                        inventory_id: null,
+                        batch_no: '',
+                        product_name: '',
+                        specification: '',
+                        material: '',
+                        quantity: 0,
+                        unit: '吨',
+                        unit_price: 0,
+                        amount: 0,
+                        tax_rate: 13,
+                        tax_amount: 0
+                    });
+                };
+
+                const removeOrderItem = (index) => {
+                    orderForm.items.splice(index, 1);
+                };
+
+                const onInventorySelect = (inventoryId, index) => {
+                    const inv = availableInventory.value.find(i => i.id === inventoryId);
+                    if (inv) {
+                        orderForm.items[index].batch_no = inv.batch_no;
+                        orderForm.items[index].product_name = `${inv.material} ${inv.specification}`;
+                        orderForm.items[index].specification = inv.specification;
+                        orderForm.items[index].material = inv.material;
+                        orderForm.items[index].unit = inv.unit || '吨';
+                    }
+                };
+
+                const calculateItemAmount = (item) => {
+                    item.amount = Number((item.quantity * item.unit_price).toFixed(2));
+                    item.tax_amount = Number((item.amount * item.tax_rate / 100).toFixed(2));
+                };
+
+                const saveOrder = async () => {
+                    if (!orderFormRef.value) return;
+                    
+                    try {
+                        await orderFormRef.value.validate();
+                    } catch {
+                        return;
+                    }
+
+                    if (orderForm.items.length === 0) {
+                        ElementPlus.ElMessage.warning('请至少添加一条订单明细');
+                        return;
+                    }
+
+                    saving.value = true;
+                    try {
+                        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                        const orderData = {
+                            order_no: orderForm.order_no,
+                            customer_id: orderForm.customer_id,
+                            customer_name: orderForm.customer_name,
+                            order_date: orderForm.order_date,
+                            delivery_date: orderForm.delivery_date,
+                            total_quantity: totalQuantity.value,
+                            total_amount: totalAmount.value,
+                            tax_amount: totalTax.value,
+                            final_amount: totalAmount.value + totalTax.value,
+                            salesperson: orderForm.salesperson,
+                            payment_method: orderForm.payment_method,
+                            remark: orderForm.remark,
+                            created_by: userInfo.real_name || userInfo.username
+                        };
+
+                        if (isEdit.value) {
+                            const { error } = await db
+                                .from('sales_orders')
+                                .update(orderData)
+                                .eq('order_id', orderForm.order_id);
+                            if (error) throw error;
+
+                            await db.from('sales_order_items').delete().eq('order_id', orderForm.order_id);
+                            
+                            const itemsData = orderForm.items.map(item => ({
+                                ...item,
+                                order_id: orderForm.order_id
+                            }));
+                            const { error: itemsError } = await db.from('sales_order_items').insert(itemsData);
+                            if (itemsError) throw itemsError;
+
+                            ElementPlus.ElMessage.success('订单更新成功');
+                        } else {
+                            const { data: newOrder, error } = await db
+                                .from('sales_orders')
+                                .insert([orderData])
+                                .select();
+                            if (error) throw error;
+
+                            const orderId = newOrder[0].order_id;
+                            const itemsData = orderForm.items.map(item => ({
+                                ...item,
+                                order_id: orderId
+                            }));
+                            const { error: itemsError } = await db.from('sales_order_items').insert(itemsData);
+                            if (itemsError) throw itemsError;
+
+                            ElementPlus.ElMessage.success('订单创建成功');
+                        }
+
+                        dialogVisible.value = false;
+                        loadOrders();
+                    } catch (err) {
+                        console.error('保存订单失败:', err);
+                        ElementPlus.ElMessage.error('保存订单失败: ' + err.message);
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                const approveOrder = async (row) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要审核通过订单"${row.order_no}"吗？`,
+                            '确认审核',
+                            { type: 'warning' }
+                        );
+
+                        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                        const { error } = await db
+                            .from('sales_orders')
+                            .update({
+                                order_status: 2,
+                                approved_by: userInfo.real_name || userInfo.username,
+                                approved_at: new Date()
+                            })
+                            .eq('order_id', row.order_id);
+                        
+                        if (error) throw error;
+
+                        const arNo = `AR${Date.now()}`;
+                        await db.from('accounts_receivable').insert([{
+                            ar_no: arNo,
+                            customer_id: row.customer_id,
+                            customer_name: row.customer_name,
+                            order_id: row.order_id,
+                            order_no: row.order_no,
+                            ar_date: row.order_date,
+                            due_date: null,
+                            original_amount: row.final_amount,
+                            received_amount: 0,
+                            remaining_amount: row.final_amount,
+                            status: 1,
+                            created_by: userInfo.real_name || userInfo.username
+                        }]);
+
+                        ElementPlus.ElMessage.success('订单审核通过');
+                        detailDialogVisible.value = false;
+                        loadOrders();
+                    } catch (err) {
+                        if (err !== 'cancel') {
+                            console.error('审核订单失败:', err);
+                            ElementPlus.ElMessage.error('审核订单失败');
+                        }
+                    }
+                };
+
+                const completeOrder = async (row) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要将订单"${row.order_no}"标记为完成吗？`,
+                            '确认完成',
+                            { type: 'warning' }
+                        );
+
+                        const { error } = await db
+                            .from('sales_orders')
+                            .update({ order_status: 3 })
+                            .eq('order_id', row.order_id);
+                        
+                        if (error) throw error;
+                        ElementPlus.ElMessage.success('订单已完成');
+                        loadOrders();
+                    } catch (err) {
+                        if (err !== 'cancel') {
+                            console.error('完成订单失败:', err);
+                            ElementPlus.ElMessage.error('完成订单失败');
+                        }
+                    }
+                };
+
+                const cancelOrder = async (row) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要取消订单"${row.order_no}"吗？`,
+                            '确认取消',
+                            { type: 'warning' }
+                        );
+
+                        const { error } = await db
+                            .from('sales_orders')
+                            .update({ order_status: 4 })
+                            .eq('order_id', row.order_id);
+                        
+                        if (error) throw error;
+                        ElementPlus.ElMessage.success('订单已取消');
+                        loadOrders();
+                    } catch (err) {
+                        if (err !== 'cancel') {
+                            console.error('取消订单失败:', err);
+                            ElementPlus.ElMessage.error('取消订单失败');
+                        }
+                    }
+                };
+
+                const viewOrder = async (row) => {
+                    currentOrder.value = row;
+                    
+                    const { data: items } = await db
+                        .from('sales_order_items')
+                        .select('*')
+                        .eq('order_id', row.order_id);
+                    
+                    orderItems.value = items || [];
+                    detailDialogVisible.value = true;
+                };
+
+                const handleSearch = () => {
+                    currentPage.value = 1;
+                };
+
+                const handleSizeChange = (val) => {
+                    pageSize.value = val;
+                    currentPage.value = 1;
+                };
+
+                const handleCurrentChange = (val) => {
+                    currentPage.value = val;
+                };
+
+                const getStatusType = (status) => {
+                    const types = { 1: 'warning', 2: 'primary', 3: 'success', 4: 'info' };
+                    return types[status] || 'info';
+                };
+
+                const getStatusText = (status) => {
+                    const texts = { 1: '待审核', 2: '已审核', 3: '已完成', 4: '已取消' };
+                    return texts[status] || '未知';
+                };
+
+                const getPaymentStatusType = (status) => {
+                    const types = { 1: 'danger', 2: 'warning', 3: 'success' };
+                    return types[status] || 'info';
+                };
+
+                const getPaymentStatusText = (status) => {
+                    const texts = { 1: '未付款', 2: '部分付款', 3: '已付款' };
+                    return texts[status] || '未知';
+                };
+
+                const getPaymentMethodText = (method) => {
+                    const texts = {
+                        cash: '现金',
+                        bank_transfer: '银行转账',
+                        alipay: '支付宝',
+                        wechat: '微信',
+                        monthly: '月结'
+                    };
+                    return texts[method] || method || '-';
+                };
+
+                const formatNumber = (num) => {
+                    if (num === null || num === undefined) return '0.00';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                const formatWeight = (num) => {
+                    if (num === null || num === undefined) return '0.000';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                };
+
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return '-';
+                    const date = new Date(dateStr);
+                    return date.toLocaleString('zh-CN');
+                };
+
+                const exportToExcel = () => {
+                    const data = orders.value.map(o => ({
+                        '订单编号': o.order_no,
+                        '客户名称': o.customer_name,
+                        '订单日期': o.order_date?.substring(0, 10),
+                        '交货日期': o.delivery_date?.substring(0, 10) || '',
+                        '数量(吨)': o.total_quantity,
+                        '订单金额': o.total_amount,
+                        '税额': o.tax_amount,
+                        '订单总额': o.final_amount,
+                        '订单状态': getStatusText(o.order_status),
+                        '付款状态': getPaymentStatusText(o.payment_status),
+                        '销售员': o.salesperson || '',
+                        '创建时间': formatDate(o.created_at)
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '销售订单');
+                    XLSX.writeFile(wb, `销售订单_${new Date().toLocaleDateString()}.xlsx`);
+                };
+
+                onMounted(() => {
+                    loadOrders();
+                    loadCustomers();
+                    loadInventory();
+                });
+
+                return {
+                    loading,
+                    saving,
+                    orders,
+                    customers,
+                    availableInventory,
+                    orderItems,
+                    searchText,
+                    dateRange,
+                    filterStatus,
+                    filterPayment,
+                    currentPage,
+                    pageSize,
+                    totalOrders,
+                    filteredOrders,
+                    dialogVisible,
+                    detailDialogVisible,
+                    isEdit,
+                    currentOrder,
+                    orderForm,
+                    orderRules,
+                    orderFormRef,
+                    statistics,
+                    totalQuantity,
+                    totalAmount,
+                    totalTax,
+                    openAddDialog,
+                    editOrder,
+                    saveOrder,
+                    approveOrder,
+                    completeOrder,
+                    cancelOrder,
+                    viewOrder,
+                    onCustomerChange,
+                    addOrderItem,
+                    removeOrderItem,
+                    onInventorySelect,
+                    calculateItemAmount,
+                    handleSearch,
+                    handleSizeChange,
+                    handleCurrentChange,
+                    getStatusType,
+                    getStatusText,
+                    getPaymentStatusType,
+                    getPaymentStatusText,
+                    getPaymentMethodText,
+                    formatNumber,
+                    formatWeight,
+                    formatDate,
+                    exportToExcel
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                app.component(key, component);
+            }
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

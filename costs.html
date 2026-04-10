@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成本核算 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        .page-header {
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .main-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        .stat-card .label {
+            color: #909399;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .stat-card .value {
+            font-size: 22px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .stat-card .trend {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .stat-card .trend.up { color: #f56c6c; }
+        .stat-card .trend.down { color: #67c23a; }
+        .content-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #ebeef5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .cost-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .cost-tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #f5f7fa;
+            color: #606266;
+            transition: all 0.3s;
+        }
+        .cost-tab.active {
+            background: #9b59b6;
+            color: white;
+        }
+        .cost-tab:hover:not(.active) {
+            background: #e9ecef;
+        }
+        .cost-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .cost-item {
+            background: #f5f7fa;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cost-item .name {
+            color: #606266;
+            font-size: 14px;
+        }
+        .cost-item .amount {
+            font-size: 18px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .cost-item .percent {
+            font-size: 12px;
+            color: #909399;
+        }
+        .chart-container {
+            height: 300px;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .amount-cell {
+            text-align: right;
+            font-family: monospace;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #9b59b6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .cost-form-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .cost-form-row.single {
+            grid-template-columns: 1fr;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="page-header">
+            <h1>📊 成本核算管理</h1>
+            <div class="header-actions">
+                <button class="back-btn" @click="goBack">← 返回主页</button>
+            </div>
+        </div>
+
+        <div class="main-container">
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <div class="label">本月总成本</div>
+                    <div class="value">¥{{ formatNumber(monthlyCost.total) }}</div>
+                    <div class="trend" :class="costTrend >= 0 ? 'up' : 'down'">
+                        {{ costTrend >= 0 ? '↑' : '↓' }} {{ Math.abs(costTrend).toFixed(1) }}% 较上月
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">材料成本</div>
+                    <div class="value">¥{{ formatNumber(monthlyCost.material) }}</div>
+                    <div class="trend">{{ getPercent(monthlyCost.material, monthlyCost.total) }}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">人工成本</div>
+                    <div class="value">¥{{ formatNumber(monthlyCost.labor) }}</div>
+                    <div class="trend">{{ getPercent(monthlyCost.labor, monthlyCost.total) }}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">制造费用</div>
+                    <div class="value">¥{{ formatNumber(monthlyCost.manufacturing) }}</div>
+                    <div class="trend">{{ getPercent(monthlyCost.manufacturing, monthlyCost.total) }}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">其他费用</div>
+                    <div class="value">¥{{ formatNumber(monthlyCost.other) }}</div>
+                    <div class="trend">{{ getPercent(monthlyCost.other, monthlyCost.total) }}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">单位成本</div>
+                    <div class="value">¥{{ formatNumber(unitCost) }}</div>
+                    <div class="trend">每吨平均</div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>成本分析</h3>
+                    <div>
+                        <el-date-picker
+                            v-model="selectedMonth"
+                            type="month"
+                            placeholder="选择月份"
+                            @change="loadCostData"
+                            style="width: 150px; margin-right: 10px;"
+                        ></el-date-picker>
+                        <el-button type="primary" @click="showCostInputDialog">📝 录入成本</el-button>
+                        <el-button @click="exportToExcel">📥 导出Excel</el-button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="cost-tabs">
+                        <div class="cost-tab" :class="{ active: activeTab === 'overview' }" @click="activeTab = 'overview'">成本概览</div>
+                        <div class="cost-tab" :class="{ active: activeTab === 'material' }" @click="activeTab = 'material'">材料成本</div>
+                        <div class="cost-tab" :class="{ active: activeTab === 'labor' }" @click="activeTab = 'labor'">人工成本</div>
+                        <div class="cost-tab" :class="{ active: activeTab === 'manufacturing' }" @click="activeTab = 'manufacturing'">制造费用</div>
+                        <div class="cost-tab" :class="{ active: activeTab === 'product' }" @click="activeTab = 'product'">产品成本</div>
+                    </div>
+
+                    <div v-show="activeTab === 'overview'">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="margin-bottom: 15px;">成本构成</h4>
+                                <div class="chart-container" ref="pieChartRef"></div>
+                            </div>
+                            <div>
+                                <h4 style="margin-bottom: 15px;">成本趋势（近6个月）</h4>
+                                <div class="chart-container" ref="trendChartRef"></div>
+                            </div>
+                        </div>
+                        <div class="cost-breakdown" style="margin-top: 20px;">
+                            <div class="cost-item">
+                                <div>
+                                    <div class="name">直接材料</div>
+                                    <div class="percent">{{ getPercent(monthlyCost.material, monthlyCost.total) }}%</div>
+                                </div>
+                                <div class="amount">¥{{ formatNumber(monthlyCost.material) }}</div>
+                            </div>
+                            <div class="cost-item">
+                                <div>
+                                    <div class="name">直接人工</div>
+                                    <div class="percent">{{ getPercent(monthlyCost.labor, monthlyCost.total) }}%</div>
+                                </div>
+                                <div class="amount">¥{{ formatNumber(monthlyCost.labor) }}</div>
+                            </div>
+                            <div class="cost-item">
+                                <div>
+                                    <div class="name">制造费用</div>
+                                    <div class="percent">{{ getPercent(monthlyCost.manufacturing, monthlyCost.total) }}%</div>
+                                </div>
+                                <div class="amount">¥{{ formatNumber(monthlyCost.manufacturing) }}</div>
+                            </div>
+                            <div class="cost-item">
+                                <div>
+                                    <div class="name">管理费用</div>
+                                    <div class="percent">{{ getPercent(monthlyCost.admin, monthlyCost.total) }}%</div>
+                                </div>
+                                <div class="amount">¥{{ formatNumber(monthlyCost.admin) }}</div>
+                            </div>
+                            <div class="cost-item">
+                                <div>
+                                    <div class="name">销售费用</div>
+                                    <div class="percent">{{ getPercent(monthlyCost.sales, monthlyCost.total) }}%</div>
+                                </div>
+                                <div class="amount">¥{{ formatNumber(monthlyCost.sales) }}</div>
+                            </div>
+                            <div class="cost-item">
+                                <div>
+                                    <div class="name">其他费用</div>
+                                    <div class="percent">{{ getPercent(monthlyCost.other, monthlyCost.total) }}%</div>
+                                </div>
+                                <div class="amount">¥{{ formatNumber(monthlyCost.other) }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="activeTab === 'material'">
+                        <el-table :data="materialCosts" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="material_name" label="材料名称" width="180"></el-table-column>
+                            <el-table-column prop="specification" label="规格" width="120"></el-table-column>
+                            <el-table-column prop="quantity" label="数量" width="100" align="right"></el-table-column>
+                            <el-table-column prop="unit" label="单位" width="80"></el-table-column>
+                            <el-table-column label="单价" width="120" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.unit_price) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="金额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.amount) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="supplier" label="供应商" width="150"></el-table-column>
+                            <el-table-column prop="purchase_date" label="采购日期" width="110"></el-table-column>
+                        </el-table>
+                    </div>
+
+                    <div v-show="activeTab === 'labor'">
+                        <el-table :data="laborCosts" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="department" label="部门" width="150"></el-table-column>
+                            <el-table-column prop="employee_count" label="员工人数" width="100" align="center"></el-table-column>
+                            <el-table-column label="基本工资" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.base_salary) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="加班工资" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.overtime_pay) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="奖金" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.bonus) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="社保公积金" width="140" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.insurance) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="合计" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.total) }}</span>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </div>
+
+                    <div v-show="activeTab === 'manufacturing'">
+                        <el-table :data="manufacturingCosts" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="cost_type" label="费用类型" width="150"></el-table-column>
+                            <el-table-column prop="description" label="说明"></el-table-column>
+                            <el-table-column label="金额" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.amount) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="cost_date" label="发生日期" width="110"></el-table-column>
+                            <el-table-column prop="allocated_to" label="分配对象" width="120"></el-table-column>
+                        </el-table>
+                    </div>
+
+                    <div v-show="activeTab === 'product'">
+                        <el-table :data="productCosts" style="width: 100%" v-loading="loading">
+                            <el-table-column prop="product_name" label="产品名称" width="180"></el-table-column>
+                            <el-table-column prop="specification" label="规格" width="120"></el-table-column>
+                            <el-table-column prop="quantity" label="产量" width="100" align="right"></el-table-column>
+                            <el-table-column label="材料成本" width="120" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.material_cost) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="人工成本" width="120" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.labor_cost) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="制造费用" width="120" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.manufacturing_cost) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="总成本" width="140" align="right">
+                                <template #default="{ row }">
+                                    <span class="amount-cell">¥{{ formatNumber(row.total_cost) }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="单位成本" width="120" align="right">
+                                <template #default="{ row }">
+                                    ¥{{ formatNumber(row.unit_cost) }}
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <el-dialog v-model="costInputDialogVisible" title="成本录入" width="600px">
+            <el-form :model="costForm" :rules="costRules" ref="costFormRef" label-width="100px">
+                <el-form-item label="成本类型" prop="cost_type">
+                    <el-select v-model="costForm.cost_type" placeholder="选择成本类型" style="width: 100%">
+                        <el-option label="材料成本" value="material"></el-option>
+                        <el-option label="人工成本" value="labor"></el-option>
+                        <el-option label="制造费用" value="manufacturing"></el-option>
+                        <el-option label="管理费用" value="admin"></el-option>
+                        <el-option label="销售费用" value="sales"></el-option>
+                        <el-option label="其他费用" value="other"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="费用名称" prop="name">
+                    <el-input v-model="costForm.name" placeholder="输入费用名称"></el-input>
+                </el-form-item>
+                <el-form-item label="金额" prop="amount">
+                    <el-input-number v-model="costForm.amount" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="发生日期" prop="cost_date">
+                    <el-date-picker v-model="costForm.cost_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="关联产品">
+                    <el-select v-model="costForm.product_id" placeholder="选择关联产品（可选）" clearable style="width: 100%">
+                        <el-option v-for="p in products" :key="p.product_id" :label="p.product_name" :value="p.product_id"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="costForm.remark" type="textarea" :rows="2"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="costInputDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitCost" :loading="saving">确认录入</el-button>
+            </template>
+        </el-dialog>
+
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://likgolefqrhntbiscxdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+        const db = createClient(supabaseUrl, supabaseKey);
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const saving = ref(false);
+                const activeTab = ref('overview');
+                const selectedMonth = ref(new Date());
+                const pieChartRef = ref(null);
+                const trendChartRef = ref(null);
+                const costInputDialogVisible = ref(false);
+                const costFormRef = ref(null);
+                const products = ref([]);
+
+                const monthlyCost = reactive({
+                    total: 0,
+                    material: 0,
+                    labor: 0,
+                    manufacturing: 0,
+                    admin: 0,
+                    sales: 0,
+                    other: 0
+                });
+
+                const costTrend = ref(0);
+                const unitCost = ref(0);
+
+                const materialCosts = ref([]);
+                const laborCosts = ref([]);
+                const manufacturingCosts = ref([]);
+                const productCosts = ref([]);
+
+                const costForm = reactive({
+                    cost_type: '',
+                    name: '',
+                    amount: 0,
+                    cost_date: new Date().toISOString().split('T')[0],
+                    product_id: null,
+                    remark: ''
+                });
+
+                const costRules = {
+                    cost_type: [{ required: true, message: '请选择成本类型', trigger: 'change' }],
+                    name: [{ required: true, message: '请输入费用名称', trigger: 'blur' }],
+                    amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
+                    cost_date: [{ required: true, message: '请选择发生日期', trigger: 'change' }]
+                };
+
+                const loadCostData = async () => {
+                    loading.value = true;
+                    try {
+                        const year = selectedMonth.value.getFullYear();
+                        const month = selectedMonth.value.getMonth() + 1;
+                        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+                        const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+
+                        const { data: costs, error } = await db
+                            .from('cost_records')
+                            .select('*')
+                            .gte('cost_date', startDate)
+                            .lte('cost_date', endDate)
+                            .order('cost_date', { ascending: false });
+
+                        if (error) throw error;
+
+                        monthlyCost.total = 0;
+                        monthlyCost.material = 0;
+                        monthlyCost.labor = 0;
+                        monthlyCost.manufacturing = 0;
+                        monthlyCost.admin = 0;
+                        monthlyCost.sales = 0;
+                        monthlyCost.other = 0;
+
+                        (costs || []).forEach(c => {
+                            const amount = c.amount || 0;
+                            monthlyCost.total += amount;
+                            if (c.cost_type === 'material') monthlyCost.material += amount;
+                            else if (c.cost_type === 'labor') monthlyCost.labor += amount;
+                            else if (c.cost_type === 'manufacturing') monthlyCost.manufacturing += amount;
+                            else if (c.cost_type === 'admin') monthlyCost.admin += amount;
+                            else if (c.cost_type === 'sales') monthlyCost.sales += amount;
+                            else monthlyCost.other += amount;
+                        });
+
+                        materialCosts.value = (costs || []).filter(c => c.cost_type === 'material');
+                        laborCosts.value = (costs || []).filter(c => c.cost_type === 'labor');
+                        manufacturingCosts.value = (costs || []).filter(c => c.cost_type === 'manufacturing');
+
+                        await loadProductCosts(year, month);
+                        await loadTrendData();
+                        
+                        await nextTick();
+                        initCharts();
+                    } catch (e) {
+                        console.error('加载成本数据失败:', e);
+                        ElementPlus.ElMessage.error('加载成本数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadProductCosts = async (year, month) => {
+                    try {
+                        const { data, error } = await db
+                            .from('product_costs')
+                            .select('*')
+                            .eq('year', year)
+                            .eq('month', month);
+
+                        if (error) throw error;
+                        productCosts.value = data || [];
+
+                        const totalQty = productCosts.value.reduce((sum, p) => sum + (p.quantity || 0), 0);
+                        unitCost.value = totalQty > 0 ? monthlyCost.total / totalQty : 0;
+                    } catch (e) {
+                        console.error('加载产品成本失败:', e);
+                        productCosts.value = [];
+                    }
+                };
+
+                const loadTrendData = async () => {
+                    try {
+                        const trends = [];
+                        const now = new Date();
+                        
+                        for (let i = 5; i >= 0; i--) {
+                            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                            const year = d.getFullYear();
+                            const month = d.getMonth() + 1;
+                            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+                            const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+
+                            const { data, error } = await db
+                                .from('cost_records')
+                                .select('amount')
+                                .gte('cost_date', startDate)
+                                .lte('cost_date', endDate);
+
+                            if (!error && data) {
+                                const total = data.reduce((sum, r) => sum + (r.amount || 0), 0);
+                                trends.push({ month: `${year}-${String(month).padStart(2, '0')}`, total });
+                            }
+                        }
+
+                        if (trends.length >= 2) {
+                            const lastMonth = trends[trends.length - 2].total;
+                            const thisMonth = trends[trends.length - 1].total;
+                            costTrend.value = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth) * 100 : 0;
+                        }
+                    } catch (e) {
+                        console.error('加载趋势数据失败:', e);
+                    }
+                };
+
+                const loadProducts = async () => {
+                    try {
+                        const { data, error } = await db
+                            .from('products')
+                            .select('product_id, product_name')
+                            .eq('status', 1);
+
+                        if (error) throw error;
+                        products.value = data || [];
+                    } catch (e) {
+                        console.error('加载产品数据失败:', e);
+                    }
+                };
+
+                const initCharts = () => {
+                    if (pieChartRef.value) {
+                        const pieChart = echarts.init(pieChartRef.value);
+                        pieChart.setOption({
+                            tooltip: { trigger: 'item', formatter: '{b}: ¥{c} ({d}%)' },
+                            legend: { bottom: 10 },
+                            series: [{
+                                type: 'pie',
+                                radius: ['40%', '70%'],
+                                avoidLabelOverlap: false,
+                                itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+                                label: { show: false },
+                                emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+                                data: [
+                                    { value: monthlyCost.material, name: '材料成本', itemStyle: { color: '#5470c6' } },
+                                    { value: monthlyCost.labor, name: '人工成本', itemStyle: { color: '#91cc75' } },
+                                    { value: monthlyCost.manufacturing, name: '制造费用', itemStyle: { color: '#fac858' } },
+                                    { value: monthlyCost.admin, name: '管理费用', itemStyle: { color: '#ee6666' } },
+                                    { value: monthlyCost.sales, name: '销售费用', itemStyle: { color: '#73c0de' } },
+                                    { value: monthlyCost.other, name: '其他费用', itemStyle: { color: '#3ba272' } }
+                                ].filter(d => d.value > 0)
+                            }]
+                        });
+                    }
+
+                    if (trendChartRef.value) {
+                        const trendChart = echarts.init(trendChartRef.value);
+                        trendChart.setOption({
+                            tooltip: { trigger: 'axis' },
+                            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                            xAxis: { type: 'category', data: [] },
+                            yAxis: { type: 'value', axisLabel: { formatter: '¥{value}' } },
+                            series: [{
+                                data: [],
+                                type: 'line',
+                                smooth: true,
+                                areaStyle: { opacity: 0.3 },
+                                itemStyle: { color: '#9b59b6' }
+                            }]
+                        });
+                    }
+                };
+
+                const showCostInputDialog = () => {
+                    costForm.cost_type = '';
+                    costForm.name = '';
+                    costForm.amount = 0;
+                    costForm.cost_date = new Date().toISOString().split('T')[0];
+                    costForm.product_id = null;
+                    costForm.remark = '';
+                    costInputDialogVisible.value = true;
+                };
+
+                const submitCost = async () => {
+                    if (!costFormRef.value) return;
+                    
+                    await costFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        
+                        saving.value = true;
+                        try {
+                            const { error } = await db
+                                .from('cost_records')
+                                .insert({
+                                    cost_type: costForm.cost_type,
+                                    cost_name: costForm.name,
+                                    amount: costForm.amount,
+                                    cost_date: costForm.cost_date,
+                                    product_id: costForm.product_id,
+                                    remark: costForm.remark,
+                                    created_at: new Date().toISOString()
+                                });
+
+                            if (error) throw error;
+
+                            ElementPlus.ElMessage.success('成本录入成功');
+                            costInputDialogVisible.value = false;
+                            loadCostData();
+                        } catch (e) {
+                            console.error('成本录入失败:', e);
+                            ElementPlus.ElMessage.error('成本录入失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const formatNumber = (num) => {
+                    if (num === null || num === undefined) return '0.00';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                const getPercent = (part, total) => {
+                    if (!total || total === 0) return 0;
+                    return ((part / total) * 100).toFixed(1);
+                };
+
+                const exportToExcel = () => {
+                    const data = [];
+                    
+                    data.push({ '成本类型': '材料成本', '金额': monthlyCost.material });
+                    data.push({ '成本类型': '人工成本', '金额': monthlyCost.labor });
+                    data.push({ '成本类型': '制造费用', '金额': monthlyCost.manufacturing });
+                    data.push({ '成本类型': '管理费用', '金额': monthlyCost.admin });
+                    data.push({ '成本类型': '销售费用', '金额': monthlyCost.sales });
+                    data.push({ '成本类型': '其他费用', '金额': monthlyCost.other });
+                    data.push({ '成本类型': '合计', '金额': monthlyCost.total });
+                    
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '成本核算');
+                    XLSX.writeFile(wb, `成本核算_${selectedMonth.value.toISOString().slice(0, 7)}.xlsx`);
+                };
+
+                const goBack = () => {
+                    window.location.href = 'user-view.html';
+                };
+
+                onMounted(() => {
+                    loadProducts();
+                    loadCostData();
+                });
+
+                return {
+                    loading,
+                    saving,
+                    activeTab,
+                    selectedMonth,
+                    pieChartRef,
+                    trendChartRef,
+                    costInputDialogVisible,
+                    costFormRef,
+                    products,
+                    monthlyCost,
+                    costTrend,
+                    unitCost,
+                    materialCosts,
+                    laborCosts,
+                    manufacturingCosts,
+                    productCosts,
+                    costForm,
+                    costRules,
+                    loadCostData,
+                    showCostInputDialog,
+                    submitCost,
+                    formatNumber,
+                    getPercent,
+                    exportToExcel,
+                    goBack
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                app.component(key, component);
+            }
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

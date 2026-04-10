@@ -1,0 +1,2272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>销售财务中心 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 220px;
+            background: linear-gradient(180deg, #1a1f36 0%, #252b48 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-header h1 span {
+            font-size: 24px;
+        }
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+        .nav-group {
+            margin-bottom: 5px;
+        }
+        .nav-group-title {
+            padding: 10px 20px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+            gap: 12px;
+        }
+        .nav-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .nav-item.active {
+            background: rgba(64, 158, 255, 0.2);
+            border-left-color: #409EFF;
+        }
+        .nav-item .icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+        .nav-item .label {
+            font-size: 14px;
+        }
+        .nav-item .badge {
+            margin-left: auto;
+            background: #f56c6c;
+            color: white;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .sidebar-footer {
+            padding: 15px 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            text-decoration: none;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .main-content {
+            flex: 1;
+            margin-left: 220px;
+            min-height: 100vh;
+        }
+        .content-header {
+            background: white;
+            padding: 15px 25px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .content-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #303133;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .content-header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .content-body {
+            padding: 20px;
+        }
+        .module-container {
+            display: none;
+        }
+        .module-container.active {
+            display: block;
+        }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-card .label {
+            color: #909399;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .stat-card.primary .value { color: #409EFF; }
+        .stat-card.success .value { color: #67c23a; }
+        .stat-card.warning .value { color: #e6a23c; }
+        .stat-card.danger .value { color: #f56c6c; }
+        .content-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #ebeef5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        .amount {
+            font-family: monospace;
+            text-align: right;
+        }
+        .amount.positive { color: #67c23a; }
+        .amount.negative { color: #f56c6c; }
+        .status-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .status-pending { background: #fef0f0; color: #f56c6c; }
+        .status-partial { background: #fdf6ec; color: #e6a23c; }
+        .status-completed { background: #f0f9eb; color: #67c23a; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .form-grid.single {
+            grid-template-columns: 1fr;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #409EFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .chart-box {
+            height: 300px;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .mobile-toggle {
+                display: block;
+            }
+        }
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #409EFF;
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 101;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="app-container">
+            <div class="sidebar" :class="{ open: sidebarOpen }">
+                <div class="sidebar-header">
+                    <h1><span>💼</span> 销售财务中心</h1>
+                </div>
+                <div class="sidebar-nav">
+                    <div class="nav-group">
+                        <div class="nav-group-title">销售管理</div>
+                        <div class="nav-item" :class="{ active: activeModule === 'customers' }" @click="switchModule('customers')">
+                            <span class="icon">👥</span>
+                            <span class="label">客户管理</span>
+                        </div>
+                        <div class="nav-item" :class="{ active: activeModule === 'sales' }" @click="switchModule('sales')">
+                            <span class="icon">📝</span>
+                            <span class="label">销售订单</span>
+                            <span class="badge" v-if="pendingOrders > 0">{{ pendingOrders }}</span>
+                        </div>
+                    </div>
+                    <div class="nav-group">
+                        <div class="nav-group-title">应收应付</div>
+                        <div class="nav-item" :class="{ active: activeModule === 'receivables' }" @click="switchModule('receivables')">
+                            <span class="icon">💰</span>
+                            <span class="label">应收账款</span>
+                            <span class="badge" v-if="overdueReceivables > 0">{{ overdueReceivables }}</span>
+                        </div>
+                        <div class="nav-item" :class="{ active: activeModule === 'payables' }" @click="switchModule('payables')">
+                            <span class="icon">💳</span>
+                            <span class="label">应付账款</span>
+                        </div>
+                    </div>
+                    <div class="nav-group">
+                        <div class="nav-group-title">成本税务</div>
+                        <div class="nav-item" :class="{ active: activeModule === 'costs' }" @click="switchModule('costs')">
+                            <span class="icon">📊</span>
+                            <span class="label">成本核算</span>
+                        </div>
+                        <div class="nav-item" :class="{ active: activeModule === 'tax' }" @click="switchModule('tax')">
+                            <span class="icon">📋</span>
+                            <span class="label">税务管理</span>
+                        </div>
+                    </div>
+                    <div class="nav-group">
+                        <div class="nav-group-title">财务核算</div>
+                        <div class="nav-item" :class="{ active: activeModule === 'vouchers' }" @click="switchModule('vouchers')">
+                            <span class="icon">📑</span>
+                            <span class="label">凭证管理</span>
+                        </div>
+                        <div class="nav-item" :class="{ active: activeModule === 'closing' }" @click="switchModule('closing')">
+                            <span class="icon">🔄</span>
+                            <span class="label">期末结账</span>
+                        </div>
+                        <div class="nav-item" :class="{ active: activeModule === 'reports' }" @click="switchModule('reports')">
+                            <span class="icon">📈</span>
+                            <span class="label">财务报表</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar-footer">
+                    <a href="user-view.html" class="back-btn">
+                        <span>←</span>
+                        <span>返回主页</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="content-header">
+                    <h2>
+                        <span>{{ moduleIcon }}</span>
+                        {{ moduleTitle }}
+                    </h2>
+                    <div class="content-header-actions">
+                        <el-button v-if="activeModule === 'customers'" type="primary" @click="showCustomerDialog">+ 新增客户</el-button>
+                        <el-button v-if="activeModule === 'sales'" type="primary" @click="showSalesDialog">+ 新增订单</el-button>
+                        <el-button v-if="activeModule === 'receivables'" type="primary" @click="showReceivableDialog" :disabled="!selectedReceivable">💳 收款登记</el-button>
+                        <el-button v-if="activeModule === 'payables'" type="primary" @click="showPayableDialog" :disabled="!selectedPayable">💳 付款登记</el-button>
+                        <el-button v-if="activeModule === 'costs'" type="primary" @click="showCostDialog">📝 录入成本</el-button>
+                        <el-button v-if="activeModule === 'tax'" type="primary" @click="showTaxCalcDialog">🧮 税金计算</el-button>
+                        <el-button v-if="activeModule === 'vouchers'" type="primary" @click="showVoucherDialog">+ 新增凭证</el-button>
+                        <el-button @click="exportCurrentModule">📥 导出</el-button>
+                    </div>
+                </div>
+
+                <div class="content-body">
+                    <!-- 客户管理模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'customers' }">
+                        <div class="stats-row">
+                            <div class="stat-card primary">
+                                <div class="label">客户总数</div>
+                                <div class="value">{{ customers.length }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">活跃客户</div>
+                                <div class="value">{{ customers.filter(c => c.status === 1).length }}</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">总信用额度</div>
+                                <div class="value">¥{{ formatNumber(customers.reduce((s, c) => s + (c.credit_limit || 0), 0)) }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-body">
+                                <div class="toolbar">
+                                    <el-input v-model="customerSearch" placeholder="搜索客户名称/联系人..." clearable style="width: 250px">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-select v-model="customerStatusFilter" placeholder="状态筛选" clearable style="width: 120px">
+                                        <el-option label="全部" value=""></el-option>
+                                        <el-option label="活跃" :value="1"></el-option>
+                                        <el-option label="停用" :value="0"></el-option>
+                                    </el-select>
+                                </div>
+                                <el-table :data="filteredCustomers" style="width: 100%" v-loading="loading">
+                                    <el-table-column prop="customer_code" label="客户编码" width="120"></el-table-column>
+                                    <el-table-column prop="customer_name" label="客户名称" width="180"></el-table-column>
+                                    <el-table-column prop="contact_person" label="联系人" width="100"></el-table-column>
+                                    <el-table-column prop="contact_phone" label="电话" width="130"></el-table-column>
+                                    <el-table-column label="信用额度" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">¥{{ formatNumber(row.credit_limit) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="应收余额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount negative">¥{{ formatNumber(row.receivable_balance || 0) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="80" align="center">
+                                        <template #default="{ row }">
+                                            <span :class="['status-tag', row.status === 1 ? 'status-completed' : 'status-pending']">
+                                                {{ row.status === 1 ? '活跃' : '停用' }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="150" fixed="right">
+                                        <template #default="{ row }">
+                                            <el-button type="primary" link size="small" @click="editCustomer(row)">编辑</el-button>
+                                            <el-button type="danger" link size="small" @click="deleteCustomer(row)">删除</el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 销售订单模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'sales' }">
+                        <div class="stats-row">
+                            <div class="stat-card primary">
+                                <div class="label">本月订单</div>
+                                <div class="value">{{ salesStats.total }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">已完成</div>
+                                <div class="value">{{ salesStats.completed }}</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">待处理</div>
+                                <div class="value">{{ salesStats.pending }}</div>
+                            </div>
+                            <div class="stat-card danger">
+                                <div class="label">本月销售额</div>
+                                <div class="value">¥{{ formatNumber(salesStats.amount) }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-body">
+                                <div class="toolbar">
+                                    <el-input v-model="salesSearch" placeholder="搜索订单号/客户..." clearable style="width: 200px">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-select v-model="salesStatusFilter" placeholder="订单状态" clearable style="width: 120px">
+                                        <el-option label="全部" value=""></el-option>
+                                        <el-option label="待确认" :value="1"></el-option>
+                                        <el-option label="已确认" :value="2"></el-option>
+                                        <el-option label="已完成" :value="3"></el-option>
+                                        <el-option label="已取消" :value="0"></el-option>
+                                    </el-select>
+                                    <el-date-picker v-model="salesDateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 240px"></el-date-picker>
+                                </div>
+                                <el-table :data="filteredSales" style="width: 100%" v-loading="loading">
+                                    <el-table-column prop="order_no" label="订单号" width="140"></el-table-column>
+                                    <el-table-column prop="customer_name" label="客户" width="150"></el-table-column>
+                                    <el-table-column prop="order_date" label="订单日期" width="110"></el-table-column>
+                                    <el-table-column label="订单金额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">¥{{ formatNumber(row.final_amount || row.total_amount) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="已收款" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount positive">¥{{ formatNumber(row.paid_amount || 0) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="100" align="center">
+                                        <template #default="{ row }">
+                                            <span :class="['status-tag', getSalesStatusClass(row.order_status)]">
+                                                {{ getSalesStatusText(row.order_status) }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="150" fixed="right">
+                                        <template #default="{ row }">
+                                            <el-button type="primary" link size="small" @click="viewSalesDetail(row)">详情</el-button>
+                                            <el-button type="success" link size="small" @click="confirmSalesOrder(row)" v-if="row.order_status === 1">确认</el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 应收账款模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'receivables' }">
+                        <div class="stats-row">
+                            <div class="stat-card danger">
+                                <div class="label">应收总额</div>
+                                <div class="value">¥{{ formatNumber(receivableStats.total) }}</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">待收款</div>
+                                <div class="value">¥{{ formatNumber(receivableStats.pending) }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">已收款</div>
+                                <div class="value">¥{{ formatNumber(receivableStats.received) }}</div>
+                            </div>
+                            <div class="stat-card danger">
+                                <div class="label">逾期金额</div>
+                                <div class="value">¥{{ formatNumber(receivableStats.overdue) }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-body">
+                                <div class="toolbar">
+                                    <el-input v-model="receivableSearch" placeholder="搜索客户/单号..." clearable style="width: 200px">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-select v-model="receivableStatusFilter" placeholder="收款状态" clearable style="width: 120px">
+                                        <el-option label="全部" value=""></el-option>
+                                        <el-option label="待收款" :value="1"></el-option>
+                                        <el-option label="部分收款" :value="2"></el-option>
+                                        <el-option label="已收款" :value="3"></el-option>
+                                    </el-select>
+                                </div>
+                                <el-table :data="filteredReceivables" style="width: 100%" v-loading="loading" @selection-change="handleReceivableSelect">
+                                    <el-table-column type="selection" width="50"></el-table-column>
+                                    <el-table-column prop="ar_no" label="应收单号" width="140"></el-table-column>
+                                    <el-table-column prop="customer_name" label="客户" width="150"></el-table-column>
+                                    <el-table-column label="应收金额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount negative">¥{{ formatNumber(row.total_amount) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="已收金额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount positive">¥{{ formatNumber(row.received_amount || 0) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="剩余金额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount negative">¥{{ formatNumber(row.remaining_amount) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="due_date" label="到期日" width="110">
+                                        <template #default="{ row }">
+                                            <span :style="{ color: isOverdue(row.due_date, row.status) ? '#f56c6c' : '' }">
+                                                {{ row.due_date }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="100" align="center">
+                                        <template #default="{ row }">
+                                            <span :class="['status-tag', getReceivableStatusClass(row.status)]">
+                                                {{ getReceivableStatusText(row.status) }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="120" fixed="right">
+                                        <template #default="{ row }">
+                                            <el-button type="primary" link size="small" @click="viewReceivableDetail(row)">详情</el-button>
+                                            <el-button type="success" link size="small" @click="receivePayment(row)" v-if="row.status !== 3">收款</el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 应付账款模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'payables' }">
+                        <div class="stats-row">
+                            <div class="stat-card danger">
+                                <div class="label">应付总额</div>
+                                <div class="value">¥{{ formatNumber(payableStats.total) }}</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">待付款</div>
+                                <div class="value">¥{{ formatNumber(payableStats.pending) }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">已付款</div>
+                                <div class="value">¥{{ formatNumber(payableStats.paid) }}</div>
+                            </div>
+                            <div class="stat-card danger">
+                                <div class="label">逾期金额</div>
+                                <div class="value">¥{{ formatNumber(payableStats.overdue) }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-body">
+                                <div class="toolbar">
+                                    <el-input v-model="payableSearch" placeholder="搜索供应商/单号..." clearable style="width: 200px">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-select v-model="payableStatusFilter" placeholder="付款状态" clearable style="width: 120px">
+                                        <el-option label="全部" value=""></el-option>
+                                        <el-option label="待付款" :value="1"></el-option>
+                                        <el-option label="部分付款" :value="2"></el-option>
+                                        <el-option label="已付款" :value="3"></el-option>
+                                    </el-select>
+                                </div>
+                                <el-table :data="filteredPayables" style="width: 100%" v-loading="loading" @selection-change="handlePayableSelect">
+                                    <el-table-column type="selection" width="50"></el-table-column>
+                                    <el-table-column prop="ap_no" label="应付单号" width="140"></el-table-column>
+                                    <el-table-column prop="supplier_name" label="供应商" width="150"></el-table-column>
+                                    <el-table-column label="应付金额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount negative">¥{{ formatNumber(row.total_amount) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="已付金额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount positive">¥{{ formatNumber(row.paid_amount || 0) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="剩余金额" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount negative">¥{{ formatNumber(row.remaining_amount) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="due_date" label="到期日" width="110"></el-table-column>
+                                    <el-table-column label="状态" width="100" align="center">
+                                        <template #default="{ row }">
+                                            <span :class="['status-tag', getPayableStatusClass(row.status)]">
+                                                {{ getPayableStatusText(row.status) }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="120" fixed="right">
+                                        <template #default="{ row }">
+                                            <el-button type="primary" link size="small" @click="viewPayableDetail(row)">详情</el-button>
+                                            <el-button type="success" link size="small" @click="makePayment(row)" v-if="row.status !== 3">付款</el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 成本核算模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'costs' }">
+                        <div class="stats-row">
+                            <div class="stat-card">
+                                <div class="label">本月总成本</div>
+                                <div class="value">¥{{ formatNumber(costStats.total) }}</div>
+                            </div>
+                            <div class="stat-card primary">
+                                <div class="label">材料成本</div>
+                                <div class="value">¥{{ formatNumber(costStats.material) }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">人工成本</div>
+                                <div class="value">¥{{ formatNumber(costStats.labor) }}</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">制造费用</div>
+                                <div class="value">¥{{ formatNumber(costStats.manufacturing) }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3>成本分析</h3>
+                                <el-date-picker v-model="costMonth" type="month" placeholder="选择月份" @change="loadCostData" style="width: 130px"></el-date-picker>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h4 style="margin-bottom: 15px;">成本构成</h4>
+                                        <div class="chart-box" ref="costPieChart"></div>
+                                    </div>
+                                    <div>
+                                        <h4 style="margin-bottom: 15px;">成本趋势</h4>
+                                        <div class="chart-box" ref="costTrendChart"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3>成本明细</h3>
+                            </div>
+                            <div class="card-body">
+                                <el-table :data="costRecords" style="width: 100%" v-loading="loading">
+                                    <el-table-column prop="cost_name" label="成本项目" width="180"></el-table-column>
+                                    <el-table-column prop="cost_type" label="类型" width="100">
+                                        <template #default="{ row }">
+                                            {{ getCostTypeText(row.cost_type) }}
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="金额" width="140" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">¥{{ formatNumber(row.amount) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="cost_date" label="日期" width="110"></el-table-column>
+                                    <el-table-column prop="remark" label="备注"></el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 税务管理模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'tax' }">
+                        <div class="stats-row">
+                            <div class="stat-card danger">
+                                <div class="label">应交增值税</div>
+                                <div class="value">¥{{ formatNumber(taxStats.vat) }}</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">应交附加税</div>
+                                <div class="value">¥{{ formatNumber(taxStats.surcharge) }}</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="label">应交所得税</div>
+                                <div class="value">¥{{ formatNumber(taxStats.incomeTax) }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">已缴税额</div>
+                                <div class="value">¥{{ formatNumber(taxStats.paid) }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3>税务汇总</h3>
+                                <el-date-picker v-model="taxMonth" type="month" placeholder="选择月份" @change="loadTaxData" style="width: 130px"></el-date-picker>
+                            </div>
+                            <div class="card-body">
+                                <el-table :data="taxSummary" style="width: 100%" v-loading="loading">
+                                    <el-table-column prop="tax_type" label="税种" width="150"></el-table-column>
+                                    <el-table-column label="计税依据" width="140" align="right">
+                                        <template #default="{ row }">
+                                            ¥{{ formatNumber(row.tax_base) }}
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="税率" width="100" align="center">
+                                        <template #default="{ row }">
+                                            {{ (row.tax_rate * 100).toFixed(1) }}%
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="应纳税额" width="140" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount negative">¥{{ formatNumber(row.tax_amount) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="100" align="center">
+                                        <template #default="{ row }">
+                                            <span :class="['status-tag', row.status === 'paid' ? 'status-completed' : 'status-pending']">
+                                                {{ row.status === 'paid' ? '已缴纳' : '待缴纳' }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 凭证管理模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'vouchers' }">
+                        <div class="stats-row">
+                            <div class="stat-card primary">
+                                <div class="label">本月凭证</div>
+                                <div class="value">{{ voucherStats.total }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">已审核</div>
+                                <div class="value">{{ voucherStats.audited }}</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">待审核</div>
+                                <div class="value">{{ voucherStats.pending }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-body">
+                                <div class="toolbar">
+                                    <el-input v-model="voucherSearch" placeholder="搜索凭证号..." clearable style="width: 200px">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-select v-model="voucherStatusFilter" placeholder="审核状态" clearable style="width: 120px">
+                                        <el-option label="全部" value=""></el-option>
+                                        <el-option label="待审核" :value="1"></el-option>
+                                        <el-option label="已审核" :value="2"></el-option>
+                                    </el-select>
+                                    <el-date-picker v-model="voucherDateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 240px"></el-date-picker>
+                                </div>
+                                <el-table :data="filteredVouchers" style="width: 100%" v-loading="loading">
+                                    <el-table-column prop="voucher_no" label="凭证号" width="140"></el-table-column>
+                                    <el-table-column prop="voucher_date" label="凭证日期" width="110"></el-table-column>
+                                    <el-table-column prop="voucher_type" label="凭证类型" width="100"></el-table-column>
+                                    <el-table-column label="借方金额" width="140" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">¥{{ formatNumber(row.total_debit) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="贷方金额" width="140" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">¥{{ formatNumber(row.total_credit) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="description" label="摘要" min-width="200"></el-table-column>
+                                    <el-table-column label="状态" width="100" align="center">
+                                        <template #default="{ row }">
+                                            <span :class="['status-tag', row.status === 2 ? 'status-completed' : 'status-pending']">
+                                                {{ row.status === 2 ? '已审核' : '待审核' }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="150" fixed="right">
+                                        <template #default="{ row }">
+                                            <el-button type="primary" link size="small" @click="viewVoucherDetail(row)">详情</el-button>
+                                            <el-button type="success" link size="small" @click="auditVoucher(row)" v-if="row.status === 1">审核</el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 期末结账模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'closing' }">
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3>结账检查清单</h3>
+                                <el-date-picker v-model="closingPeriod" type="month" placeholder="选择期间" @change="loadClosingData" style="width: 130px"></el-date-picker>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                                    <div class="stat-card" :style="{ background: closingChecks.vouchers ? '#f0f9eb' : '#fef0f0' }">
+                                        <div class="label">凭证审核</div>
+                                        <div class="value">{{ closingChecks.vouchers ? '✓ 已完成' : '✗ 待检查' }}</div>
+                                    </div>
+                                    <div class="stat-card" :style="{ background: closingChecks.reconciliation ? '#f0f9eb' : '#fef0f0' }">
+                                        <div class="label">银行对账</div>
+                                        <div class="value">{{ closingChecks.reconciliation ? '✓ 已完成' : '✗ 待检查' }}</div>
+                                    </div>
+                                    <div class="stat-card" :style="{ background: closingChecks.inventory ? '#f0f9eb' : '#fef0f0' }">
+                                        <div class="label">存货盘点</div>
+                                        <div class="value">{{ closingChecks.inventory ? '✓ 已完成' : '✗ 待检查' }}</div>
+                                    </div>
+                                    <div class="stat-card" :style="{ background: closingChecks.receivables ? '#f0f9eb' : '#fef0f0' }">
+                                        <div class="label">应收核对</div>
+                                        <div class="value">{{ closingChecks.receivables ? '✓ 已完成' : '✗ 待检查' }}</div>
+                                    </div>
+                                    <div class="stat-card" :style="{ background: closingChecks.payables ? '#f0f9eb' : '#fef0f0' }">
+                                        <div class="label">应付核对</div>
+                                        <div class="value">{{ closingChecks.payables ? '✓ 已完成' : '✗ 待检查' }}</div>
+                                    </div>
+                                    <div class="stat-card" :style="{ background: closingChecks.tax ? '#f0f9eb' : '#fef0f0' }">
+                                        <div class="label">税务申报</div>
+                                        <div class="value">{{ closingChecks.tax ? '✓ 已完成' : '✗ 待检查' }}</div>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 20px; text-align: center;">
+                                    <el-button type="primary" @click="runClosingChecks">执行全部检查</el-button>
+                                    <el-button type="success" @click="executeClosing" :disabled="!canClose" v-if="periodStatus === 'open'">确认结账</el-button>
+                                    <el-button type="warning" @click="reopenPeriod" v-if="periodStatus === 'closed'">反结账</el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3>期末汇总</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-row">
+                                    <div class="stat-card success">
+                                        <div class="label">本期收入</div>
+                                        <div class="value">¥{{ formatNumber(closingSummary.revenue) }}</div>
+                                    </div>
+                                    <div class="stat-card danger">
+                                        <div class="label">本期成本</div>
+                                        <div class="value">¥{{ formatNumber(closingSummary.cost) }}</div>
+                                    </div>
+                                    <div class="stat-card danger">
+                                        <div class="label">本期费用</div>
+                                        <div class="value">¥{{ formatNumber(closingSummary.expenses) }}</div>
+                                    </div>
+                                    <div class="stat-card" :class="closingSummary.profit >= 0 ? 'success' : 'danger'">
+                                        <div class="label">本期利润</div>
+                                        <div class="value">¥{{ formatNumber(closingSummary.profit) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 财务报表模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'reports' }">
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3>财务报表</h3>
+                                <div>
+                                    <el-date-picker v-model="reportMonth" type="month" placeholder="选择月份" @change="loadReportData" style="width: 130px; margin-right: 10px;"></el-date-picker>
+                                    <el-button-group>
+                                        <el-button :type="reportType === 'profit' ? 'primary' : ''" @click="reportType = 'profit'">利润表</el-button>
+                                        <el-button :type="reportType === 'balance' ? 'primary' : ''" @click="reportType = 'balance'">资产负债表</el-button>
+                                        <el-button :type="reportType === 'cashflow' ? 'primary' : ''" @click="reportType = 'cashflow'">现金流量表</el-button>
+                                    </el-button-group>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div v-show="reportType === 'profit'">
+                                    <el-table :data="profitStatement" style="width: 100%" v-loading="loading">
+                                        <el-table-column prop="item" label="项目" width="250"></el-table-column>
+                                        <el-table-column label="本期金额" width="150" align="right">
+                                            <template #default="{ row }">
+                                                <span class="amount">¥{{ formatNumber(row.current) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="上期金额" width="150" align="right">
+                                            <template #default="{ row }">
+                                                <span class="amount">¥{{ formatNumber(row.last) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </div>
+                                <div v-show="reportType === 'balance'">
+                                    <el-table :data="balanceSheet" style="width: 100%" v-loading="loading">
+                                        <el-table-column prop="item" label="项目" width="200"></el-table-column>
+                                        <el-table-column label="期末余额" width="150" align="right">
+                                            <template #default="{ row }">
+                                                <span class="amount">¥{{ formatNumber(row期末) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column prop="item2" label="项目" width="200"></el-table-column>
+                                        <el-table-column label="期末余额" width="150" align="right">
+                                            <template #default="{ row }">
+                                                <span class="amount">¥{{ formatNumber(row.期末2) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </div>
+                                <div v-show="reportType === 'cashflow'">
+                                    <el-table :data="cashflowStatement" style="width: 100%" v-loading="loading">
+                                        <el-table-column prop="item" label="项目" width="300"></el-table-column>
+                                        <el-table-column label="本期金额" width="150" align="right">
+                                            <template #default="{ row }">
+                                                <span class="amount">¥{{ formatNumber(row.current) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="上期金额" width="150" align="right">
+                                            <template #default="{ row }">
+                                                <span class="amount">¥{{ formatNumber(row.last) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="mobile-toggle" @click="sidebarOpen = !sidebarOpen">☰</button>
+
+        <!-- 客户对话框 -->
+        <el-dialog v-model="customerDialogVisible" :title="customerForm.id ? '编辑客户' : '新增客户'" width="550px">
+            <el-form :model="customerForm" :rules="customerRules" ref="customerFormRef" label-width="100px">
+                <div class="form-grid">
+                    <el-form-item label="客户编码" prop="customer_code">
+                        <el-input v-model="customerForm.customer_code" placeholder="自动生成" :disabled="!!customerForm.id"></el-input>
+                    </el-form-item>
+                    <el-form-item label="客户名称" prop="customer_name">
+                        <el-input v-model="customerForm.customer_name" placeholder="请输入客户名称"></el-input>
+                    </el-form-item>
+                    <el-form-item label="联系人" prop="contact_person">
+                        <el-input v-model="customerForm.contact_person" placeholder="请输入联系人"></el-input>
+                    </el-form-item>
+                    <el-form-item label="联系电话" prop="phone">
+                        <el-input v-model="customerForm.phone" placeholder="请输入联系电话"></el-input>
+                    </el-form-item>
+                    <el-form-item label="信用额度">
+                        <el-input-number v-model="customerForm.credit_limit" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                    </el-form-item>
+                    <el-form-item label="状态">
+                        <el-switch v-model="customerForm.status" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="停用"></el-switch>
+                    </el-form-item>
+                </div>
+                <el-form-item label="地址">
+                    <el-input v-model="customerForm.address" type="textarea" :rows="2" placeholder="请输入地址"></el-input>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="customerForm.remark" type="textarea" :rows="2" placeholder="请输入备注"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="customerDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveCustomer" :loading="saving">保存</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 销售订单对话框 -->
+        <el-dialog v-model="salesDialogVisible" title="新增销售订单" width="700px">
+            <el-form :model="salesForm" :rules="salesRules" ref="salesFormRef" label-width="100px">
+                <div class="form-grid">
+                    <el-form-item label="客户" prop="customer_id">
+                        <el-select v-model="salesForm.customer_id" placeholder="选择客户" style="width: 100%" filterable>
+                            <el-option v-for="c in customers" :key="c.customer_id" :label="c.customer_name" :value="c.customer_id"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="订单日期" prop="order_date">
+                        <el-date-picker v-model="salesForm.order_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                    </el-form-item>
+                    <el-form-item label="交货日期">
+                        <el-date-picker v-model="salesForm.delivery_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                    </el-form-item>
+                    <el-form-item label="付款方式">
+                        <el-select v-model="salesForm.payment_method" placeholder="选择付款方式" style="width: 100%">
+                            <el-option label="现结" value="cash"></el-option>
+                            <el-option label="月结" value="monthly"></el-option>
+                            <el-option label="账期" value="credit"></el-option>
+                        </el-select>
+                    </el-form-item>
+                </div>
+                <el-form-item label="订单明细">
+                    <el-table :data="salesForm.items" style="width: 100%" size="small">
+                        <el-table-column label="产品名称" width="200">
+                            <template #default="{ row }">
+                                <el-input v-model="row.product_name" placeholder="产品名称"></el-input>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="规格" width="120">
+                            <template #default="{ row }">
+                                <el-input v-model="row.specification" placeholder="规格"></el-input>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="数量" width="100">
+                            <template #default="{ row }">
+                                <el-input-number v-model="row.quantity" :min="1" size="small" style="width: 100%"></el-input-number>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="单价" width="120">
+                            <template #default="{ row }">
+                                <el-input-number v-model="row.unit_price" :min="0" :precision="2" size="small" style="width: 100%"></el-input-number>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="金额" width="120" align="right">
+                            <template #default="{ row }">
+                                ¥{{ formatNumber(row.quantity * row.unit_price) }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="80">
+                            <template #default="{ $index }">
+                                <el-button type="danger" link size="small" @click="removeSalesItem($index)">删除</el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <el-button type="primary" link @click="addSalesItem" style="margin-top: 10px;">+ 添加明细</el-button>
+                </el-form-item>
+                <el-form-item label="订单金额">
+                    <span style="font-size: 18px; font-weight: 600; color: #f56c6c;">¥{{ formatNumber(salesTotalAmount) }}</span>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="salesForm.remark" type="textarea" :rows="2" placeholder="请输入备注"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="salesDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveSales" :loading="saving">保存</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 收款对话框 -->
+        <el-dialog v-model="receivableDialogVisible" title="收款登记" width="500px">
+            <el-form :model="receivableForm" :rules="receivableRules" ref="receivableFormRef" label-width="100px">
+                <el-form-item label="应收单号">
+                    <el-input :value="selectedReceivable?.ar_no" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="客户">
+                    <el-input :value="selectedReceivable?.customer_name" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="应收金额">
+                    <el-input :value="'¥' + formatNumber(selectedReceivable?.total_amount)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="已收金额">
+                    <el-input :value="'¥' + formatNumber(selectedReceivable?.received_amount || 0)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="剩余金额">
+                    <el-input :value="'¥' + formatNumber(selectedReceivable?.remaining_amount)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="收款金额" prop="amount">
+                    <el-input-number v-model="receivableForm.amount" :min="0" :max="selectedReceivable?.remaining_amount" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="收款日期" prop="payment_date">
+                    <el-date-picker v-model="receivableForm.payment_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="收款方式" prop="payment_method">
+                    <el-select v-model="receivableForm.payment_method" placeholder="选择收款方式" style="width: 100%">
+                        <el-option label="银行转账" value="bank"></el-option>
+                        <el-option label="现金" value="cash"></el-option>
+                        <el-option label="支票" value="check"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="receivableForm.remark" type="textarea" :rows="2"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="receivableDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveReceivable" :loading="saving">确认收款</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 付款对话框 -->
+        <el-dialog v-model="payableDialogVisible" title="付款登记" width="500px">
+            <el-form :model="payableForm" :rules="payableRules" ref="payableFormRef" label-width="100px">
+                <el-form-item label="应付单号">
+                    <el-input :value="selectedPayable?.ap_no" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="供应商">
+                    <el-input :value="selectedPayable?.supplier_name" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="应付金额">
+                    <el-input :value="'¥' + formatNumber(selectedPayable?.total_amount)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="已付金额">
+                    <el-input :value="'¥' + formatNumber(selectedPayable?.paid_amount || 0)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="剩余金额">
+                    <el-input :value="'¥' + formatNumber(selectedPayable?.remaining_amount)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="付款金额" prop="amount">
+                    <el-input-number v-model="payableForm.amount" :min="0" :max="selectedPayable?.remaining_amount" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="付款日期" prop="payment_date">
+                    <el-date-picker v-model="payableForm.payment_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="付款方式" prop="payment_method">
+                    <el-select v-model="payableForm.payment_method" placeholder="选择付款方式" style="width: 100%">
+                        <el-option label="银行转账" value="bank"></el-option>
+                        <el-option label="现金" value="cash"></el-option>
+                        <el-option label="支票" value="check"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="payableForm.remark" type="textarea" :rows="2"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="payableDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="savePayable" :loading="saving">确认付款</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 成本录入对话框 -->
+        <el-dialog v-model="costDialogVisible" title="成本录入" width="500px">
+            <el-form :model="costForm" :rules="costRules" ref="costFormRef" label-width="100px">
+                <el-form-item label="成本类型" prop="cost_type">
+                    <el-select v-model="costForm.cost_type" placeholder="选择成本类型" style="width: 100%">
+                        <el-option label="材料成本" value="material"></el-option>
+                        <el-option label="人工成本" value="labor"></el-option>
+                        <el-option label="制造费用" value="manufacturing"></el-option>
+                        <el-option label="管理费用" value="admin"></el-option>
+                        <el-option label="销售费用" value="sales"></el-option>
+                        <el-option label="其他费用" value="other"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="费用名称" prop="cost_name">
+                    <el-input v-model="costForm.cost_name" placeholder="输入费用名称"></el-input>
+                </el-form-item>
+                <el-form-item label="金额" prop="amount">
+                    <el-input-number v-model="costForm.amount" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="发生日期" prop="cost_date">
+                    <el-date-picker v-model="costForm.cost_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="costForm.remark" type="textarea" :rows="2"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="costDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveCost" :loading="saving">保存</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 凭证对话框 -->
+        <el-dialog v-model="voucherDialogVisible" title="新增凭证" width="800px">
+            <el-form :model="voucherForm" :rules="voucherRules" ref="voucherFormRef" label-width="100px">
+                <div class="form-grid">
+                    <el-form-item label="凭证日期" prop="voucher_date">
+                        <el-date-picker v-model="voucherForm.voucher_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                    </el-form-item>
+                    <el-form-item label="凭证类型" prop="voucher_type">
+                        <el-select v-model="voucherForm.voucher_type" placeholder="选择类型" style="width: 100%">
+                            <el-option label="收款凭证" value="收款凭证"></el-option>
+                            <el-option label="付款凭证" value="付款凭证"></el-option>
+                            <el-option label="转账凭证" value="转账凭证"></el-option>
+                            <el-option label="记账凭证" value="记账凭证"></el-option>
+                        </el-select>
+                    </el-form-item>
+                </div>
+                <el-form-item label="摘要" prop="description">
+                    <el-input v-model="voucherForm.description" placeholder="请输入摘要"></el-input>
+                </el-form-item>
+                <el-form-item label="凭证分录">
+                    <el-table :data="voucherForm.items" style="width: 100%" size="small">
+                        <el-table-column label="科目" width="180">
+                            <template #default="{ row }">
+                                <el-input v-model="row.subject" placeholder="科目"></el-input>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="借方金额" width="140">
+                            <template #default="{ row }">
+                                <el-input-number v-model="row.debit" :min="0" :precision="2" size="small" style="width: 100%"></el-input-number>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="贷方金额" width="140">
+                            <template #default="{ row }">
+                                <el-input-number v-model="row.credit" :min="0" :precision="2" size="small" style="width: 100%"></el-input-number>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="80">
+                            <template #default="{ $index }">
+                                <el-button type="danger" link size="small" @click="removeVoucherItem($index)">删除</el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <el-button type="primary" link @click="addVoucherItem" style="margin-top: 10px;">+ 添加分录</el-button>
+                </el-form-item>
+                <el-form-item label="合计">
+                    <span style="margin-right: 30px;">借方: ¥{{ formatNumber(voucherTotalDebit) }}</span>
+                    <span>贷方: ¥{{ formatNumber(voucherTotalCredit) }}</span>
+                    <el-tag v-if="voucherTotalDebit !== voucherTotalCredit" type="danger" style="margin-left: 15px;">借贷不平衡</el-tag>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="voucherDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveVoucher" :loading="saving">保存</el-button>
+            </template>
+        </el-dialog>
+
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://likgolefqrhntbiscxdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+        const db = createClient(supabaseUrl, supabaseKey);
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const saving = ref(false);
+                const sidebarOpen = ref(false);
+                const activeModule = ref('customers');
+
+                const currentUser = ref(null);
+                const currentUserId = ref(null);
+
+                const checkAuth = () => {
+                    const userStr = localStorage.getItem('currentUser');
+                    if (!userStr) {
+                        window.location.href = 'login.html';
+                        return false;
+                    }
+                    try {
+                        currentUser.value = JSON.parse(userStr);
+                        currentUserId.value = currentUser.value.id;
+                        return true;
+                    } catch (e) {
+                        console.error('解析用户信息失败:', e);
+                        window.location.href = 'login.html';
+                        return false;
+                    }
+                };
+
+                const logAudit = async (actionType, tableName, recordId, recordNo, details) => {
+                    if (!currentUserId.value) return;
+                    try {
+                        await db.from('finance_audit_log').insert({
+                            user_id: currentUserId.value,
+                            username: currentUser.value?.username || currentUser.value?.name || 'unknown',
+                            action_type: actionType,
+                            table_name: tableName,
+                            record_id: recordId,
+                            record_no: recordNo,
+                            operation_type: 'BROWSER',
+                            details: details || {},
+                            created_at: new Date().toISOString()
+                        });
+                    } catch (e) {
+                        console.error('记录审计日志失败:', e);
+                    }
+                };
+
+                const moduleInfo = {
+                    customers: { icon: '👥', title: '客户管理' },
+                    sales: { icon: '📝', title: '销售订单' },
+                    receivables: { icon: '💰', title: '应收账款' },
+                    payables: { icon: '💳', title: '应付账款' },
+                    costs: { icon: '📊', title: '成本核算' },
+                    tax: { icon: '📋', title: '税务管理' },
+                    vouchers: { icon: '📑', title: '凭证管理' },
+                    closing: { icon: '🔄', title: '期末结账' },
+                    reports: { icon: '📈', title: '财务报表' }
+                };
+
+                const moduleIcon = computed(() => moduleInfo[activeModule.value]?.icon || '');
+                const moduleTitle = computed(() => moduleInfo[activeModule.value]?.title || '');
+
+                const pendingOrders = ref(0);
+                const overdueReceivables = ref(0);
+
+                // 对话框可见性
+                const customerDialogVisible = ref(false);
+                const salesDialogVisible = ref(false);
+                const receivableDialogVisible = ref(false);
+                const payableDialogVisible = ref(false);
+                const costDialogVisible = ref(false);
+                const voucherDialogVisible = ref(false);
+
+                // 表单引用
+                const customerFormRef = ref(null);
+                const salesFormRef = ref(null);
+                const receivableFormRef = ref(null);
+                const payableFormRef = ref(null);
+                const costFormRef = ref(null);
+                const voucherFormRef = ref(null);
+
+                // 客户表单
+                const customerForm = reactive({
+                    id: null,
+                    customer_code: '',
+                    customer_name: '',
+                    contact_person: '',
+                    phone: '',
+                    address: '',
+                    credit_limit: 0,
+                    status: 1,
+                    remark: ''
+                });
+                const customerRules = {
+                    customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }]
+                };
+
+                // 销售订单表单
+                const salesForm = reactive({
+                    customer_id: null,
+                    order_date: new Date().toISOString().split('T')[0],
+                    delivery_date: '',
+                    payment_method: 'monthly',
+                    items: [{ product_name: '', specification: '', quantity: 1, unit_price: 0 }],
+                    remark: ''
+                });
+                const salesRules = {
+                    customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
+                    order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }]
+                };
+                const salesTotalAmount = computed(() => {
+                    return salesForm.items.reduce((sum, item) => sum + (item.quantity * item.unit_price || 0), 0);
+                });
+
+                // 收款表单
+                const receivableForm = reactive({
+                    amount: 0,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: 'bank',
+                    remark: ''
+                });
+                const receivableRules = {
+                    amount: [{ required: true, message: '请输入收款金额', trigger: 'blur' }],
+                    payment_date: [{ required: true, message: '请选择收款日期', trigger: 'change' }],
+                    payment_method: [{ required: true, message: '请选择收款方式', trigger: 'change' }]
+                };
+
+                // 付款表单
+                const payableForm = reactive({
+                    amount: 0,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: 'bank',
+                    remark: ''
+                });
+                const payableRules = {
+                    amount: [{ required: true, message: '请输入付款金额', trigger: 'blur' }],
+                    payment_date: [{ required: true, message: '请选择付款日期', trigger: 'change' }],
+                    payment_method: [{ required: true, message: '请选择付款方式', trigger: 'change' }]
+                };
+
+                // 成本表单
+                const costForm = reactive({
+                    cost_type: 'material',
+                    cost_name: '',
+                    amount: 0,
+                    cost_date: new Date().toISOString().split('T')[0],
+                    remark: ''
+                });
+                const costRules = {
+                    cost_type: [{ required: true, message: '请选择成本类型', trigger: 'change' }],
+                    cost_name: [{ required: true, message: '请输入费用名称', trigger: 'blur' }],
+                    amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
+                    cost_date: [{ required: true, message: '请选择发生日期', trigger: 'change' }]
+                };
+
+                // 凭证表单
+                const voucherForm = reactive({
+                    voucher_date: new Date().toISOString().split('T')[0],
+                    voucher_type: '记账凭证',
+                    description: '',
+                    items: [{ subject: '', debit: 0, credit: 0 }]
+                });
+                const voucherRules = {
+                    voucher_date: [{ required: true, message: '请选择凭证日期', trigger: 'change' }],
+                    voucher_type: [{ required: true, message: '请选择凭证类型', trigger: 'change' }],
+                    description: [{ required: true, message: '请输入摘要', trigger: 'blur' }]
+                };
+                const voucherTotalDebit = computed(() => voucherForm.items.reduce((sum, item) => sum + (item.debit || 0), 0));
+                const voucherTotalCredit = computed(() => voucherForm.items.reduce((sum, item) => sum + (item.credit || 0), 0));
+
+                const customers = ref([]);
+                const customerSearch = ref('');
+                const customerStatusFilter = ref('');
+
+                const sales = ref([]);
+                const salesSearch = ref('');
+                const salesStatusFilter = ref('');
+                const salesDateRange = ref([]);
+                const salesStats = reactive({ total: 0, completed: 0, pending: 0, amount: 0 });
+
+                const receivables = ref([]);
+                const receivableSearch = ref('');
+                const receivableStatusFilter = ref('');
+                const selectedReceivable = ref(null);
+                const receivableStats = reactive({ total: 0, pending: 0, received: 0, overdue: 0 });
+
+                const payables = ref([]);
+                const payableSearch = ref('');
+                const payableStatusFilter = ref('');
+                const selectedPayable = ref(null);
+                const payableStats = reactive({ total: 0, pending: 0, paid: 0, overdue: 0 });
+
+                const costMonth = ref(new Date());
+                const costRecords = ref([]);
+                const costStats = reactive({ total: 0, material: 0, labor: 0, manufacturing: 0 });
+                const costPieChart = ref(null);
+                const costTrendChart = ref(null);
+
+                const taxMonth = ref(new Date());
+                const taxSummary = ref([]);
+                const taxStats = reactive({ vat: 0, surcharge: 0, incomeTax: 0, paid: 0 });
+
+                const vouchers = ref([]);
+                const voucherSearch = ref('');
+                const voucherStatusFilter = ref('');
+                const voucherDateRange = ref([]);
+                const voucherStats = reactive({ total: 0, audited: 0, pending: 0 });
+
+                const closingPeriod = ref(new Date());
+                const closingChecks = reactive({ vouchers: false, reconciliation: false, inventory: false, receivables: false, payables: false, tax: false });
+                const closingSummary = reactive({ revenue: 0, cost: 0, expenses: 0, profit: 0 });
+                const periodStatus = ref('open');
+
+                const reportMonth = ref(new Date());
+                const reportType = ref('profit');
+                const profitStatement = ref([]);
+                const balanceSheet = ref([]);
+                const cashflowStatement = ref([]);
+
+                const filteredCustomers = computed(() => {
+                    let result = customers.value;
+                    if (customerSearch.value) {
+                        const s = customerSearch.value.toLowerCase();
+                        result = result.filter(c => c.customer_name?.toLowerCase().includes(s) || c.contact_person?.toLowerCase().includes(s));
+                    }
+                    if (customerStatusFilter.value !== '' && customerStatusFilter.value !== null) {
+                        result = result.filter(c => c.status === customerStatusFilter.value);
+                    }
+                    return result;
+                });
+
+                const filteredSales = computed(() => {
+                    let result = sales.value;
+                    if (salesSearch.value) {
+                        const s = salesSearch.value.toLowerCase();
+                        result = result.filter(o => o.order_no?.toLowerCase().includes(s) || o.customer_name?.toLowerCase().includes(s));
+                    }
+                    if (salesStatusFilter.value !== '' && salesStatusFilter.value !== null) {
+                        result = result.filter(o => o.order_status === salesStatusFilter.value);
+                    }
+                    return result;
+                });
+
+                const filteredReceivables = computed(() => {
+                    let result = receivables.value;
+                    if (receivableSearch.value) {
+                        const s = receivableSearch.value.toLowerCase();
+                        result = result.filter(r => r.customer_name?.toLowerCase().includes(s) || r.ar_no?.toLowerCase().includes(s));
+                    }
+                    if (receivableStatusFilter.value !== '' && receivableStatusFilter.value !== null) {
+                        result = result.filter(r => r.status === receivableStatusFilter.value);
+                    }
+                    return result;
+                });
+
+                const filteredPayables = computed(() => {
+                    let result = payables.value;
+                    if (payableSearch.value) {
+                        const s = payableSearch.value.toLowerCase();
+                        result = result.filter(p => p.supplier_name?.toLowerCase().includes(s) || p.ap_no?.toLowerCase().includes(s));
+                    }
+                    if (payableStatusFilter.value !== '' && payableStatusFilter.value !== null) {
+                        result = result.filter(p => p.status === payableStatusFilter.value);
+                    }
+                    return result;
+                });
+
+                const filteredVouchers = computed(() => {
+                    let result = vouchers.value;
+                    if (voucherSearch.value) {
+                        const s = voucherSearch.value.toLowerCase();
+                        result = result.filter(v => v.voucher_no?.toLowerCase().includes(s));
+                    }
+                    if (voucherStatusFilter.value !== '' && voucherStatusFilter.value !== null) {
+                        result = result.filter(v => v.status === voucherStatusFilter.value);
+                    }
+                    return result;
+                });
+
+                const canClose = computed(() => {
+                    return Object.values(closingChecks).every(v => v === true);
+                });
+
+                const switchModule = (module) => {
+                    activeModule.value = module;
+                    sidebarOpen.value = false;
+                    loadModuleData(module);
+                };
+
+                const loadModuleData = async (module) => {
+                    loading.value = true;
+                    try {
+                        switch(module) {
+                            case 'customers': await loadCustomers(); break;
+                            case 'sales': await loadSales(); break;
+                            case 'receivables': await loadReceivables(); break;
+                            case 'payables': await loadPayables(); break;
+                            case 'costs': await loadCostData(); break;
+                            case 'tax': await loadTaxData(); break;
+                            case 'vouchers': await loadVouchers(); break;
+                            case 'closing': await loadClosingData(); break;
+                            case 'reports': await loadReportData(); break;
+                        }
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadCustomers = async () => {
+                    if (!currentUserId.value) return;
+                    const { data, error } = await db.from('customers').select('*').eq('user_id', currentUserId.value).order('created_at', { ascending: false });
+                    if (error) {
+                        console.error('Load customers error:', error);
+                    } else {
+                        customers.value = data || [];
+                        logAudit('VIEW', 'customers', null, null, { count: data?.length || 0 });
+                    }
+                };
+
+                const loadSales = async () => {
+                    if (!currentUserId.value) return;
+                    const { data, error } = await db.from('sales_orders').select('*').eq('user_id', currentUserId.value).order('order_date', { ascending: false });
+                    if (!error) {
+                        sales.value = data || [];
+                        salesStats.total = data?.length || 0;
+                        salesStats.completed = data?.filter(o => o.order_status === 3).length || 0;
+                        salesStats.pending = data?.filter(o => o.order_status === 1).length || 0;
+                        salesStats.amount = data?.reduce((s, o) => s + (o.final_amount || o.total_amount || 0), 0) || 0;
+                        pendingOrders.value = salesStats.pending;
+                        logAudit('VIEW', 'sales_orders', null, null, { count: data?.length || 0 });
+                    }
+                };
+
+                const loadReceivables = async () => {
+                    if (!currentUserId.value) return;
+                    const { data, error } = await db.from('accounts_receivable').select('*').eq('user_id', currentUserId.value).order('ar_date', { ascending: false });
+                    if (!error) {
+                        receivables.value = data || [];
+                        receivableStats.total = data?.reduce((s, r) => s + (r.total_amount || 0), 0) || 0;
+                        receivableStats.pending = data?.filter(r => r.status !== 3).reduce((s, r) => s + (r.remaining_amount || 0), 0) || 0;
+                        receivableStats.received = data?.reduce((s, r) => s + (r.received_amount || 0), 0) || 0;
+                        receivableStats.overdue = data?.filter(r => isOverdue(r.due_date, r.status)).reduce((s, r) => s + (r.remaining_amount || 0), 0) || 0;
+                        overdueReceivables.value = data?.filter(r => isOverdue(r.due_date, r.status) && r.status !== 3).length || 0;
+                        logAudit('VIEW', 'accounts_receivable', null, null, { count: data?.length || 0 });
+                    }
+                };
+
+                const loadPayables = async () => {
+                    if (!currentUserId.value) return;
+                    const { data, error } = await db.from('accounts_payable').select('*').eq('user_id', currentUserId.value).order('ap_date', { ascending: false });
+                    if (!error) {
+                        payables.value = data || [];
+                        payableStats.total = data?.reduce((s, p) => s + (p.total_amount || 0), 0) || 0;
+                        payableStats.pending = data?.filter(p => p.status !== 3).reduce((s, p) => s + (p.remaining_amount || 0), 0) || 0;
+                        payableStats.paid = data?.reduce((s, p) => s + (p.paid_amount || 0), 0) || 0;
+                        payableStats.overdue = data?.filter(p => isOverdue(p.due_date, p.status)).reduce((s, p) => s + (p.remaining_amount || 0), 0) || 0;
+                    }
+                    logAudit('VIEW', 'accounts_payable', null, null, { count: data?.length || 0 });
+                };
+
+                const loadCostData = async () => {
+                    if (!currentUserId.value) return;
+                    const year = costMonth.value.getFullYear();
+                    const month = costMonth.value.getMonth() + 1;
+                    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+                    const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+                    const { data, error } = await db.from('cost_records').select('*').eq('user_id', currentUserId.value).gte('cost_date', startDate).lte('cost_date', endDate);
+                    if (!error) {
+                        costRecords.value = data || [];
+                        costStats.total = data?.reduce((s, c) => s + (c.amount || 0), 0) || 0;
+                        costStats.material = data?.filter(c => c.cost_type === 'material').reduce((s, c) => s + (c.amount || 0), 0) || 0;
+                        costStats.labor = data?.filter(c => c.cost_type === 'labor').reduce((s, c) => s + (c.amount || 0), 0) || 0;
+                        costStats.manufacturing = data?.filter(c => c.cost_type === 'manufacturing').reduce((s, c) => s + (c.amount || 0), 0) || 0;
+                        await nextTick();
+                        initCostCharts();
+                        logAudit('VIEW', 'cost_records', null, null, { count: data?.length || 0 });
+                    }
+                };
+
+                const loadTaxData = async () => {
+                    if (!currentUserId.value) return;
+                    const period = taxMonth.value.toISOString().slice(0, 7);
+                    const { data, error } = await db.from('tax_summary').select('*').eq('user_id', currentUserId.value).eq('period', period);
+                    if (!error) taxSummary.value = data || [];
+                };
+
+                const loadVouchers = async () => {
+                    if (!currentUserId.value) return;
+                    const { data, error } = await db.from('vouchers').select('*').eq('user_id', currentUserId.value).order('voucher_date', { ascending: false });
+                    if (!error) {
+                        vouchers.value = data || [];
+                        voucherStats.total = data?.length || 0;
+                        voucherStats.audited = data?.filter(v => v.status === 2).length || 0;
+                        voucherStats.pending = data?.filter(v => v.status === 1).length || 0;
+                        logAudit('VIEW', 'vouchers', null, null, { count: data?.length || 0 });
+                    }
+                };
+
+                const loadClosingData = async () => {
+                    const period = closingPeriod.value.toISOString().slice(0, 7);
+                    const { data, error } = await db.from('accounting_periods').select('*').eq('period', period).single();
+                    if (data) {
+                        periodStatus.value = data.status || 'open';
+                        if (data.checks) Object.assign(closingChecks, data.checks);
+                    }
+                };
+
+                const loadReportData = async () => {
+                    const period = reportMonth.value.toISOString().slice(0, 7);
+                    profitStatement.value = [
+                        { item: '一、营业收入', current: closingSummary.revenue, last: 0 },
+                        { item: '减：营业成本', current: -closingSummary.cost, last: 0 },
+                        { item: '二、营业利润', current: closingSummary.revenue - closingSummary.cost, last: 0 },
+                        { item: '减：管理费用', current: -closingSummary.expenses, last: 0 },
+                        { item: '三、利润总额', current: closingSummary.profit, last: 0 }
+                    ];
+                };
+
+                const initCostCharts = () => {
+                    if (costPieChart.value && window.echarts) {
+                        const chart = echarts.init(costPieChart.value);
+                        chart.setOption({
+                            tooltip: { trigger: 'item' },
+                            series: [{
+                                type: 'pie',
+                                radius: '60%',
+                                data: [
+                                    { value: costStats.material, name: '材料成本' },
+                                    { value: costStats.labor, name: '人工成本' },
+                                    { value: costStats.manufacturing, name: '制造费用' }
+                                ]
+                            }]
+                        });
+                    }
+                };
+
+                const formatNumber = (num) => {
+                    if (num === null || num === undefined) return '0.00';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                const isOverdue = (dueDate, status) => {
+                    if (status === 3) return false;
+                    return new Date(dueDate) < new Date();
+                };
+
+                const getSalesStatusText = (status) => ({ 0: '已取消', 1: '待确认', 2: '已确认', 3: '已完成' }[status] || '未知');
+                const getSalesStatusClass = (status) => ({ 0: 'status-pending', 1: 'status-pending', 2: 'status-partial', 3: 'status-completed' }[status] || '');
+                const getReceivableStatusText = (status) => ({ 1: '待收款', 2: '部分收款', 3: '已收款' }[status] || '未知');
+                const getReceivableStatusClass = (status) => ({ 1: 'status-pending', 2: 'status-partial', 3: 'status-completed' }[status] || '');
+                const getPayableStatusText = (status) => ({ 1: '待付款', 2: '部分付款', 3: '已付款' }[status] || '未知');
+                const getPayableStatusClass = (status) => ({ 1: 'status-pending', 2: 'status-partial', 3: 'status-completed' }[status] || '');
+                const getCostTypeText = (type) => ({ material: '材料', labor: '人工', manufacturing: '制造', admin: '管理', sales: '销售', other: '其他' }[type] || type);
+
+                const handleReceivableSelect = (selection) => { selectedReceivable.value = selection.length > 0 ? selection[0] : null; };
+                const handlePayableSelect = (selection) => { selectedPayable.value = selection.length > 0 ? selection[0] : null; };
+
+                const showCustomerDialog = () => {
+                    customerForm.id = null;
+                    customerForm.customer_code = '';
+                    customerForm.customer_name = '';
+                    customerForm.contact_person = '';
+                    customerForm.phone = '';
+                    customerForm.address = '';
+                    customerForm.credit_limit = 0;
+                    customerForm.status = 1;
+                    customerForm.remark = '';
+                    customerDialogVisible.value = true;
+                };
+
+                const editCustomer = (row) => {
+                    customerForm.id = row.customer_id;
+                    customerForm.customer_code = row.customer_code;
+                    customerForm.customer_name = row.customer_name;
+                    customerForm.contact_person = row.contact_person || '';
+                    customerForm.phone = row.contact_phone || '';
+                    customerForm.address = row.address || '';
+                    customerForm.credit_limit = row.credit_limit || 0;
+                    customerForm.status = row.status;
+                    customerForm.remark = row.remark || '';
+                    customerDialogVisible.value = true;
+                };
+
+                const saveCustomer = async () => {
+                    if (!customerFormRef.value) return;
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    await customerFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        saving.value = true;
+                        try {
+                            const data = {
+                                customer_code: customerForm.customer_code || 'C' + Date.now(),
+                                customer_name: customerForm.customer_name,
+                                contact_person: customerForm.contact_person,
+                                contact_phone: customerForm.phone,
+                                address: customerForm.address,
+                                credit_limit: customerForm.credit_limit,
+                                status: customerForm.status,
+                                remark: customerForm.remark,
+                                user_id: currentUserId.value,
+                                updated_at: new Date().toISOString()
+                            };
+                            if (customerForm.id) {
+                                const { error } = await db.from('customers').update(data).eq('customer_id', customerForm.id).eq('user_id', currentUserId.value);
+                                if (error) {
+                                    ElementPlus.ElMessage.error('更新失败: ' + error.message);
+                                    return;
+                                }
+                                logAudit('UPDATE', 'customers', customerForm.id, data.customer_code, { customer_name: data.customer_name });
+                            } else {
+                                data.created_at = new Date().toISOString();
+                                const { data: inserted, error } = await db.from('customers').insert(data).select();
+                                if (error) {
+                                    console.error('Insert error:', error);
+                                    ElementPlus.ElMessage.error('保存失败: ' + error.message);
+                                    return;
+                                }
+                                logAudit('CREATE', 'customers', inserted?.[0]?.customer_id, data.customer_code, { customer_name: data.customer_name });
+                            }
+                            ElementPlus.ElMessage.success('保存成功');
+                            customerDialogVisible.value = false;
+                            loadCustomers();
+                        } catch (e) {
+                            console.error(e);
+                            ElementPlus.ElMessage.error('保存失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const showSalesDialog = () => {
+                    salesForm.customer_id = null;
+                    salesForm.order_date = new Date().toISOString().split('T')[0];
+                    salesForm.delivery_date = '';
+                    salesForm.payment_method = 'monthly';
+                    salesForm.items = [{ product_name: '', specification: '', quantity: 1, unit_price: 0 }];
+                    salesForm.remark = '';
+                    salesDialogVisible.value = true;
+                };
+
+                const addSalesItem = () => {
+                    salesForm.items.push({ product_name: '', specification: '', quantity: 1, unit_price: 0 });
+                };
+
+                const removeSalesItem = (index) => {
+                    salesForm.items.splice(index, 1);
+                };
+
+                const saveSales = async () => {
+                    if (!salesFormRef.value) return;
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    await salesFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        saving.value = true;
+                        try {
+                            const orderNo = 'SO' + Date.now();
+                            const totalAmount = salesTotalAmount.value;
+                            const { data: customer } = await db.from('customers').select('customer_name').eq('customer_id', salesForm.customer_id).eq('user_id', currentUserId.value).single();
+                            if (!customer) {
+                                ElementPlus.ElMessage.error('客户不存在或无权访问');
+                                return;
+                            }
+                            const { data: inserted, error } = await db.from('sales_orders').insert({
+                                order_no: orderNo,
+                                customer_id: salesForm.customer_id,
+                                customer_name: customer?.customer_name,
+                                order_date: salesForm.order_date,
+                                delivery_date: salesForm.delivery_date,
+                                payment_method: salesForm.payment_method,
+                                total_amount: totalAmount,
+                                final_amount: totalAmount,
+                                order_status: 1,
+                                remark: salesForm.remark,
+                                user_id: currentUserId.value,
+                                created_at: new Date().toISOString()
+                            }).select();
+                            if (error) {
+                                ElementPlus.ElMessage.error('创建订单失败: ' + error.message);
+                                return;
+                            }
+                            logAudit('CREATE', 'sales_orders', inserted?.[0]?.order_id, orderNo, { customer_name: customer?.customer_name, total_amount: totalAmount });
+                            ElementPlus.ElMessage.success('订单创建成功');
+                            salesDialogVisible.value = false;
+                            loadSales();
+                        } catch (e) {
+                            console.error(e);
+                            ElementPlus.ElMessage.error('创建订单失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const showReceivableDialog = () => {
+                    if (!selectedReceivable.value) {
+                        ElementPlus.ElMessage.warning('请先选择一条应收记录');
+                        return;
+                    }
+                    receivableForm.amount = selectedReceivable.value.remaining_amount;
+                    receivableForm.payment_date = new Date().toISOString().split('T')[0];
+                    receivableForm.payment_method = 'bank';
+                    receivableForm.remark = '';
+                    receivableDialogVisible.value = true;
+                };
+
+                const saveReceivable = async () => {
+                    if (!receivableFormRef.value) return;
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    await receivableFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        saving.value = true;
+                        try {
+                            if (selectedReceivable.value.user_id && selectedReceivable.value.user_id !== currentUserId.value) {
+                                ElementPlus.ElMessage.error('无权操作此记录');
+                                return;
+                            }
+                            const newReceivedAmount = (selectedReceivable.value.received_amount || 0) + receivableForm.amount;
+                            const newRemainingAmount = selectedReceivable.value.total_amount - newReceivedAmount;
+                            const newStatus = newRemainingAmount <= 0 ? 3 : (newReceivedAmount > 0 ? 2 : 1);
+                            const { error: updateError } = await db.from('accounts_receivable').update({
+                                received_amount: newReceivedAmount,
+                                remaining_amount: Math.max(0, newRemainingAmount),
+                                status: newStatus,
+                                updated_at: new Date().toISOString()
+                            }).eq('ar_id', selectedReceivable.value.ar_id).eq('user_id', currentUserId.value);
+                            if (updateError) {
+                                ElementPlus.ElMessage.error('更新失败: ' + updateError.message);
+                                return;
+                            }
+                            const { error: insertError } = await db.from('receipt_records').insert({
+                                ar_id: selectedReceivable.value.ar_id,
+                                amount: receivableForm.amount,
+                                receipt_date: receivableForm.payment_date,
+                                payment_method: receivableForm.payment_method,
+                                remark: receivableForm.remark,
+                                user_id: currentUserId.value,
+                                created_at: new Date().toISOString()
+                            });
+                            if (insertError) {
+                                ElementPlus.ElMessage.error('记录保存失败: ' + insertError.message);
+                                return;
+                            }
+                            logAudit('UPDATE', 'accounts_receivable', selectedReceivable.value.ar_id, selectedReceivable.value.ar_no, { amount: receivableForm.amount });
+                            ElementPlus.ElMessage.success('收款登记成功');
+                            receivableDialogVisible.value = false;
+                            loadReceivables();
+                        } catch (e) {
+                            console.error(e);
+                            ElementPlus.ElMessage.error('收款登记失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const showPayableDialog = () => {
+                    if (!selectedPayable.value) {
+                        ElementPlus.ElMessage.warning('请先选择一条应付记录');
+                        return;
+                    }
+                    payableForm.amount = selectedPayable.value.remaining_amount;
+                    payableForm.payment_date = new Date().toISOString().split('T')[0];
+                    payableForm.payment_method = 'bank';
+                    payableForm.remark = '';
+                    payableDialogVisible.value = true;
+                };
+
+                const savePayable = async () => {
+                    if (!payableFormRef.value) return;
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    await payableFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        saving.value = true;
+                        try {
+                            if (selectedPayable.value.user_id && selectedPayable.value.user_id !== currentUserId.value) {
+                                ElementPlus.ElMessage.error('无权操作此记录');
+                                return;
+                            }
+                            const newPaidAmount = (selectedPayable.value.paid_amount || 0) + payableForm.amount;
+                            const newRemainingAmount = selectedPayable.value.total_amount - newPaidAmount;
+                            const newStatus = newRemainingAmount <= 0 ? 3 : (newPaidAmount > 0 ? 2 : 1);
+                            const { error: updateError } = await db.from('accounts_payable').update({
+                                paid_amount: newPaidAmount,
+                                remaining_amount: Math.max(0, newRemainingAmount),
+                                status: newStatus,
+                                updated_at: new Date().toISOString()
+                            }).eq('ap_id', selectedPayable.value.ap_id).eq('user_id', currentUserId.value);
+                            if (updateError) {
+                                ElementPlus.ElMessage.error('更新失败: ' + updateError.message);
+                                return;
+                            }
+                            await db.from('payment_records').insert({
+                                payable_id: selectedPayable.value.ap_id,
+                                amount: payableForm.amount,
+                                payment_date: payableForm.payment_date,
+                                payment_method: payableForm.payment_method,
+                                remark: payableForm.remark,
+                                user_id: currentUserId.value,
+                                created_at: new Date().toISOString()
+                            });
+                            logAudit('UPDATE', 'accounts_payable', selectedPayable.value.ap_id, selectedPayable.value.ap_no, { amount: payableForm.amount });
+                            ElementPlus.ElMessage.success('付款登记成功');
+                            payableDialogVisible.value = false;
+                            loadPayables();
+                        } catch (e) {
+                            console.error(e);
+                            ElementPlus.ElMessage.error('付款登记失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const showCostDialog = () => {
+                    costForm.cost_type = 'material';
+                    costForm.cost_name = '';
+                    costForm.amount = 0;
+                    costForm.cost_date = new Date().toISOString().split('T')[0];
+                    costForm.remark = '';
+                    costDialogVisible.value = true;
+                };
+
+                const saveCost = async () => {
+                    if (!costFormRef.value) return;
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    await costFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        saving.value = true;
+                        try {
+                            const { data: inserted, error } = await db.from('cost_records').insert({
+                                cost_type: costForm.cost_type,
+                                cost_name: costForm.cost_name,
+                                amount: costForm.amount,
+                                cost_date: costForm.cost_date,
+                                remark: costForm.remark,
+                                user_id: currentUserId.value,
+                                created_at: new Date().toISOString()
+                            }).select();
+                            if (error) {
+                                ElementPlus.ElMessage.error('成本录入失败: ' + error.message);
+                                return;
+                            }
+                            logAudit('CREATE', 'cost_records', inserted?.[0]?.cost_id, null, { cost_name: costForm.cost_name, amount: costForm.amount });
+                            ElementPlus.ElMessage.success('成本录入成功');
+                            costDialogVisible.value = false;
+                            loadCostData();
+                        } catch (e) {
+                            console.error(e);
+                            ElementPlus.ElMessage.error('成本录入失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const showTaxCalcDialog = () => {
+                    ElementPlus.ElMessage.info('税金计算功能');
+                };
+
+                const showVoucherDialog = () => {
+                    voucherForm.voucher_date = new Date().toISOString().split('T')[0];
+                    voucherForm.voucher_type = '记账凭证';
+                    voucherForm.description = '';
+                    voucherForm.items = [{ subject: '', debit: 0, credit: 0 }];
+                    voucherDialogVisible.value = true;
+                };
+
+                const addVoucherItem = () => {
+                    voucherForm.items.push({ subject: '', debit: 0, credit: 0 });
+                };
+
+                const removeVoucherItem = (index) => {
+                    voucherForm.items.splice(index, 1);
+                };
+
+                const saveVoucher = async () => {
+                    if (!voucherFormRef.value) return;
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    await voucherFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        if (voucherTotalDebit.value !== voucherTotalCredit.value) {
+                            ElementPlus.ElMessage.warning('借贷金额不平衡');
+                            return;
+                        }
+                        saving.value = true;
+                        try {
+                            const voucherNo = 'V' + Date.now();
+                            const { data: inserted, error } = await db.from('vouchers').insert({
+                                voucher_no: voucherNo,
+                                voucher_date: voucherForm.voucher_date,
+                                voucher_type: voucherForm.voucher_type,
+                                description: voucherForm.description,
+                                total_debit: voucherTotalDebit.value,
+                                total_credit: voucherTotalCredit.value,
+                                status: 1,
+                                user_id: currentUserId.value,
+                                created_at: new Date().toISOString()
+                            }).select();
+                            if (error) {
+                                ElementPlus.ElMessage.error('创建凭证失败: ' + error.message);
+                                return;
+                            }
+                            logAudit('CREATE', 'vouchers', inserted?.[0]?.voucher_id, voucherNo, { description: voucherForm.description });
+                            ElementPlus.ElMessage.success('凭证创建成功');
+                            voucherDialogVisible.value = false;
+                            loadVouchers();
+                        } catch (e) {
+                            console.error(e);
+                            ElementPlus.ElMessage.error('创建凭证失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const deleteCustomer = async (row) => {
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    if (row.user_id && row.user_id !== currentUserId.value) {
+                        ElementPlus.ElMessage.error('无权删除此记录');
+                        return;
+                    }
+                    try {
+                        const { error } = await db.from('customers').delete().eq('customer_id', row.customer_id).eq('user_id', currentUserId.value);
+                        if (error) {
+                            ElementPlus.ElMessage.error('删除失败: ' + error.message);
+                            return;
+                        }
+                        logAudit('DELETE', 'customers', row.customer_id, row.customer_code, { customer_name: row.customer_name });
+                        ElementPlus.ElMessage.success('删除成功');
+                        loadCustomers();
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('删除失败');
+                    }
+                };
+
+                const viewSalesDetail = (row) => ElementPlus.ElMessage.info('查看订单: ' + row.order_no);
+                const confirmSalesOrder = async (row) => {
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    if (row.user_id && row.user_id !== currentUserId.value) {
+                        ElementPlus.ElMessage.error('无权操作此订单');
+                        return;
+                    }
+                    try {
+                        const { error } = await db.from('sales_orders').update({ order_status: 2 }).eq('order_id', row.order_id).eq('user_id', currentUserId.value);
+                        if (error) {
+                            ElementPlus.ElMessage.error('确认失败: ' + error.message);
+                            return;
+                        }
+                        logAudit('UPDATE', 'sales_orders', row.order_id, row.order_no, { action: 'confirm' });
+                        ElementPlus.ElMessage.success('订单已确认');
+                        loadSales();
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('确认失败');
+                    }
+                };
+
+                const viewReceivableDetail = (row) => ElementPlus.ElMessage.info('查看应收: ' + row.ar_no);
+                const receivePayment = (row) => {
+                    selectedReceivable.value = row;
+                    showReceivableDialog();
+                };
+
+                const viewPayableDetail = (row) => ElementPlus.ElMessage.info('查看应付: ' + row.ap_no);
+                const makePayment = (row) => {
+                    selectedPayable.value = row;
+                    showPayableDialog();
+                };
+
+                const viewVoucherDetail = (row) => ElementPlus.ElMessage.info('查看凭证: ' + row.voucher_no);
+                const auditVoucher = async (row) => {
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    if (row.user_id && row.user_id !== currentUserId.value) {
+                        ElementPlus.ElMessage.error('无权审核此凭证');
+                        return;
+                    }
+                    try {
+                        const { error } = await db.from('vouchers').update({ status: 2 }).eq('voucher_id', row.voucher_id).eq('user_id', currentUserId.value);
+                        if (error) {
+                            ElementPlus.ElMessage.error('审核失败: ' + error.message);
+                            return;
+                        }
+                        logAudit('UPDATE', 'vouchers', row.voucher_id, row.voucher_no, { action: 'audit' });
+                        ElementPlus.ElMessage.success('审核成功');
+                        loadVouchers();
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('审核失败');
+                    }
+                };
+
+                const runClosingChecks = () => {
+                    Object.keys(closingChecks).forEach(k => closingChecks[k] = true);
+                    ElementPlus.ElMessage.success('检查完成');
+                };
+
+                const executeClosing = async () => {
+                    if (!canClose.value) {
+                        ElementPlus.ElMessage.warning('请先完成所有检查项目');
+                        return;
+                    }
+                    try {
+                        await db.from('accounting_periods').upsert({ period: closingPeriod.value.toISOString().slice(0, 7), status: 'closed' }, { onConflict: 'period' });
+                        periodStatus.value = 'closed';
+                        ElementPlus.ElMessage.success('结账成功');
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('结账失败');
+                    }
+                };
+
+                const reopenPeriod = async () => {
+                    try {
+                        await db.from('accounting_periods').update({ status: 'open' }).eq('period', closingPeriod.value.toISOString().slice(0, 7));
+                        periodStatus.value = 'open';
+                        ElementPlus.ElMessage.success('反结账成功');
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('反结账失败');
+                    }
+                };
+
+                const exportCurrentModule = () => {
+                    ElementPlus.ElMessage.info('导出功能');
+                };
+
+                onMounted(() => {
+                    if (checkAuth()) {
+                        loadModuleData('customers');
+                    }
+                });
+
+                return {
+                    currentUser, currentUserId, checkAuth, logAudit,
+                    loading, saving, sidebarOpen, activeModule, moduleIcon, moduleTitle,
+                    pendingOrders, overdueReceivables,
+                    customerDialogVisible, salesDialogVisible, receivableDialogVisible, payableDialogVisible,
+                    costDialogVisible, voucherDialogVisible,
+                    customerFormRef, salesFormRef, receivableFormRef, payableFormRef, costFormRef, voucherFormRef,
+                    customerForm, customerRules,
+                    salesForm, salesRules, salesTotalAmount, addSalesItem, removeSalesItem,
+                    receivableForm, receivableRules,
+                    payableForm, payableRules,
+                    costForm, costRules,
+                    voucherForm, voucherRules, voucherTotalDebit, voucherTotalCredit, addVoucherItem, removeVoucherItem,
+                    customers, customerSearch, customerStatusFilter, filteredCustomers,
+                    sales, salesSearch, salesStatusFilter, salesDateRange, salesStats, filteredSales,
+                    receivables, receivableSearch, receivableStatusFilter, selectedReceivable, receivableStats, filteredReceivables,
+                    payables, payableSearch, payableStatusFilter, selectedPayable, payableStats, filteredPayables,
+                    costMonth, costRecords, costStats, costPieChart, costTrendChart,
+                    taxMonth, taxSummary, taxStats,
+                    vouchers, voucherSearch, voucherStatusFilter, voucherDateRange, voucherStats, filteredVouchers,
+                    closingPeriod, closingChecks, closingSummary, periodStatus, canClose,
+                    reportMonth, reportType, profitStatement, balanceSheet, cashflowStatement,
+                    switchModule, formatNumber, isOverdue,
+                    getSalesStatusText, getSalesStatusClass,
+                    getReceivableStatusText, getReceivableStatusClass,
+                    getPayableStatusText, getPayableStatusClass,
+                    getCostTypeText,
+                    handleReceivableSelect, handlePayableSelect,
+                    showCustomerDialog, showSalesDialog, showReceivableDialog, showPayableDialog,
+                    showCostDialog, showTaxCalcDialog, showVoucherDialog,
+                    editCustomer, deleteCustomer, saveCustomer,
+                    viewSalesDetail, confirmSalesOrder, saveSales,
+                    viewReceivableDetail, receivePayment, saveReceivable,
+                    viewPayableDetail, makePayment, savePayable,
+                    viewVoucherDetail, auditVoucher, saveVoucher,
+                    runClosingChecks, executeClosing, reopenPeriod,
+                    loadCostData, loadTaxData, loadClosingData, loadReportData,
+                    exportCurrentModule
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                app.component(key, component);
+            }
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

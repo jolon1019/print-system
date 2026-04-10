@@ -837,6 +837,13 @@
                                         </el-tag>
                                     </template>
                                 </el-table-column>
+                                <el-table-column prop="can_view_finance" label="财务权限" width="100" class-name="hide-on-mobile">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.can_view_finance ? 'success' : 'danger'">
+                                            {{ row.can_view_finance ? '允许' : '禁止' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
                                 <el-table-column label="绑定单位" min-width="150" class-name="hide-on-mobile">
                                     <template #default="{ row }">
                                         <div class="unit-tags">
@@ -1068,7 +1075,10 @@
                                     <el-button type="warning" @click="showPriceAdjustPreview">
                                         预览调整
                                     </el-button>
-                                    <el-button type="danger" @click="clearVirtualInventorySelection">
+                                    <el-button type="danger" @click="batchDeleteSelected">
+                                        批量删除
+                                    </el-button>
+                                    <el-button @click="clearVirtualInventorySelection">
                                         取消选择
                                     </el-button>
                                 </div>
@@ -1211,6 +1221,17 @@
                         :inactive-value="false"
                     ></el-switch>
                     <div class="form-tip">设置用户是否可以进行货权转让操作</div>
+                </el-form-item>
+
+                <el-form-item label="财务权限" prop="canViewFinance">
+                    <el-switch
+                        v-model="userForm.canViewFinance"
+                        active-text="允许"
+                        inactive-text="禁止"
+                        :active-value="true"
+                        :inactive-value="false"
+                    ></el-switch>
+                    <div class="form-tip">允许用户访问销售财务模块</div>
                 </el-form-item>
 
                 <el-form-item label="绑定单位" prop="units">
@@ -1879,6 +1900,7 @@
                     role: 'user',
                     status: 1,
                     canTransfer: true,
+                    canViewFinance: false,
                     units: []
                 });
 
@@ -2075,6 +2097,7 @@
                     userForm.role = user.role;
                     userForm.status = user.status;
                     userForm.canTransfer = user.can_transfer === true;
+                    userForm.canViewFinance = user.can_view_finance === true;
                     userForm.units = getUserUnits(user.id);
                     dialogVisible.value = true;
                 };
@@ -2087,6 +2110,7 @@
                     userForm.role = 'user';
                     userForm.status = 1;
                     userForm.canTransfer = true;
+                    userForm.canViewFinance = false;
                     userForm.units = [];
                     if (userFormRef.value) {
                         userFormRef.value.clearValidate();
@@ -2130,7 +2154,8 @@
                             real_name: userForm.realName,
                             role: userForm.role,
                             status: userForm.status,
-                            can_transfer: userForm.canTransfer
+                            can_transfer: userForm.canTransfer,
+                            can_view_finance: userForm.canViewFinance
                         })
                         .select()
                         .single();
@@ -2158,7 +2183,8 @@
                             real_name: userForm.realName,
                             role: userForm.role,
                             status: userForm.status,
-                            can_transfer: userForm.canTransfer
+                            can_transfer: userForm.canTransfer,
+                            can_view_finance: userForm.canViewFinance
                         })
                         .eq('id', userForm.id);
 
@@ -3269,6 +3295,45 @@
                     selectedVirtualInventory.value = [];
                 };
 
+                const batchDeleteSelected = async () => {
+                    if (selectedVirtualInventory.value.length === 0) {
+                        ElementPlus.ElMessage.warning('请先选择要删除的记录');
+                        return;
+                    }
+
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要删除选中的 ${selectedVirtualInventory.value.length} 条记录吗？此操作不可恢复。`,
+                            '批量删除',
+                            {
+                                confirmButtonText: '确定',
+                                cancelButtonText: '取消',
+                                type: 'warning'
+                            }
+                        );
+                    } catch {
+                        return;
+                    }
+
+                    try {
+                        const selectedIds = selectedVirtualInventory.value.map(item => item.id);
+                        const { error } = await supabaseClient
+                            .from('virtual_inventory')
+                            .delete()
+                            .in('id', selectedIds);
+
+                        if (error) throw error;
+
+                        selectedVirtualInventory.value = [];
+                        await loadVirtualInventoryData();
+                        
+                        ElementPlus.ElMessage.success(`成功删除 ${selectedIds.length} 条记录`);
+                    } catch (error) {
+                        console.error('批量删除失败:', error);
+                        ElementPlus.ElMessage.error('删除失败：' + (error.message || '未知错误'));
+                    }
+                };
+
                 const showPriceAdjustPreview = () => {
                     if (selectedVirtualInventory.value.length === 0) {
                         ElementPlus.ElMessage.warning('请先选择要调整价格的记录');
@@ -3722,6 +3787,7 @@
                     priceAdjusting,
                     handleVirtualInventorySelectionChange,
                     clearVirtualInventorySelection,
+                    batchDeleteSelected,
                     showPriceAdjustPreview,
                     executePriceAdjustment
                 };

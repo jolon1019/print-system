@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>凭证管理 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            min-height: 100vh;
+        }
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: linear-gradient(135deg, #909399, #6d6d6d);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .nav-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            max-width: 600px;
+            flex-wrap: wrap;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-top: 4px solid #909399;
+        }
+        .stat-card.primary { border-top-color: #409EFF; }
+        .stat-card.success { border-top-color: #67c23a; }
+        .stat-card.warning { border-top-color: #e6a23c; }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+        .dialog-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .voucher-header {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ebeef5;
+        }
+        .voucher-items {
+            margin-top: 20px;
+        }
+        .voucher-summary {
+            display: flex;
+            justify-content: flex-end;
+            gap: 40px;
+            padding: 15px 0;
+            border-top: 2px solid #ebeef5;
+            margin-top: 15px;
+            background: #fafafa;
+        }
+        .summary-item {
+            text-align: right;
+        }
+        .summary-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .summary-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .debit-value {
+            color: #67c23a;
+        }
+        .credit-value {
+            color: #f56c6c;
+        }
+        .balance-error {
+            color: #f56c6c;
+            font-weight: 600;
+        }
+        .balance-success {
+            color: #67c23a;
+            font-weight: 600;
+        }
+        .voucher-print {
+            padding: 20px;
+            background: white;
+        }
+        .voucher-print-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .voucher-print-title {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .voucher-print-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #909399;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @media (max-width: 768px) {
+            .header {
+                padding: 12px 15px;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .header h1 { font-size: 18px; }
+            .main-content { padding: 12px; }
+            .voucher-header { grid-template-columns: 1fr; }
+            .search-box { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="app-container">
+            <div class="header">
+                <h1>凭证管理</h1>
+                <div class="header-actions">
+                    <a href="user-view.html" class="nav-btn">返回主页</a>
+                    <a href="receivables.html" class="nav-btn">应收账款</a>
+                    <a href="reports.html" class="nav-btn">财务报表</a>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="statistics">
+                    <div class="stat-card">
+                        <div class="stat-label">本月凭证数</div>
+                        <div class="stat-value">{{ statistics.monthCount }}</div>
+                    </div>
+                    <div class="stat-card primary">
+                        <div class="stat-label">待审核</div>
+                        <div class="stat-value">{{ statistics.pendingCount }}</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-label">已审核</div>
+                        <div class="stat-value">{{ statistics.auditedCount }}</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-label">本期借方合计</div>
+                        <div class="stat-value">¥{{ formatNumber(statistics.totalDebit) }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">本期贷方合计</div>
+                        <div class="stat-value">¥{{ formatNumber(statistics.totalCredit) }}</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <el-input 
+                                v-model="searchText" 
+                                placeholder="搜索凭证号/摘要" 
+                                clearable
+                                @input="handleSearch"
+                                style="width: 200px;"
+                            />
+                            <el-date-picker
+                                v-model="dateRange"
+                                type="daterange"
+                                range-separator="至"
+                                start-placeholder="开始日期"
+                                end-placeholder="结束日期"
+                                @change="handleSearch"
+                                style="width: 240px;"
+                            />
+                            <el-select v-model="filterType" placeholder="凭证类型" clearable @change="handleSearch" style="width: 120px;">
+                                <el-option label="全部" value=""></el-option>
+                                <el-option label="收款凭证" :value="1"></el-option>
+                                <el-option label="付款凭证" :value="2"></el-option>
+                                <el-option label="转账凭证" :value="3"></el-option>
+                                <el-option label="通用凭证" :value="4"></el-option>
+                            </el-select>
+                            <el-select v-model="filterPosted" placeholder="审核状态" clearable @change="handleSearch" style="width: 120px;">
+                                <el-option label="全部" value=""></el-option>
+                                <el-option label="待审核" :value="false"></el-option>
+                                <el-option label="已审核" :value="true"></el-option>
+                            </el-select>
+                        </div>
+                        <div class="action-buttons">
+                            <el-button type="primary" @click="openAddDialog">
+                                <el-icon><plus /></el-icon>
+                                新建凭证
+                            </el-button>
+                            <el-button @click="exportToExcel">
+                                <el-icon><download /></el-icon>
+                                导出Excel
+                            </el-button>
+                        </div>
+                    </div>
+
+                    <el-table 
+                        :data="filteredVouchers" 
+                        stripe 
+                        style="width: 100%"
+                        v-loading="loading"
+                        @row-click="viewVoucher"
+                    >
+                        <el-table-column prop="voucher_no" label="凭证号" width="150" />
+                        <el-table-column prop="voucher_date" label="凭证日期" width="110">
+                            <template #default="{ row }">
+                                {{ row.voucher_date ? row.voucher_date.substring(0, 10) : '-' }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="voucher_type" label="凭证类型" width="100" align="center">
+                            <template #default="{ row }">
+                                <el-tag :type="getVoucherTypeTag(row.voucher_type)" size="small">
+                                    {{ getVoucherTypeText(row.voucher_type) }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="summary" label="摘要" min-width="200" show-overflow-tooltip />
+                        <el-table-column prop="total_debit" label="借方金额" width="120" align="right">
+                            <template #default="{ row }">
+                                <span class="debit-value">¥{{ formatNumber(row.total_debit) }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="total_credit" label="贷方金额" width="120" align="right">
+                            <template #default="{ row }">
+                                <span class="credit-value">¥{{ formatNumber(row.total_credit) }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="prepared_by" label="制单人" width="100" />
+                        <el-table-column prop="posted" label="状态" width="80" align="center">
+                            <template #default="{ row }">
+                                <el-tag :type="row.posted ? 'success' : 'warning'" size="small">
+                                    {{ row.posted ? '已审核' : '待审核' }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="180" fixed="right">
+                            <template #default="{ row }">
+                                <el-button 
+                                    v-if="!row.posted" 
+                                    type="success" 
+                                    size="small" 
+                                    link 
+                                    @click.stop="auditVoucher(row)"
+                                >审核</el-button>
+                                <el-button type="primary" size="small" link @click.stop="editVoucher(row)">编辑</el-button>
+                                <el-button type="info" size="small" link @click.stop="printVoucher(row)">打印</el-button>
+                                <el-button 
+                                    v-if="!row.posted" 
+                                    type="danger" 
+                                    size="small" 
+                                    link 
+                                    @click.stop="deleteVoucher(row)"
+                                >删除</el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+
+                    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                        <el-pagination
+                            v-model:current-page="currentPage"
+                            v-model:page-size="pageSize"
+                            :page-sizes="[10, 20, 50, 100]"
+                            :total="totalRecords"
+                            layout="total, sizes, prev, pager, next, jumper"
+                            @size-change="handleSizeChange"
+                            @current-change="handleCurrentChange"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <el-dialog 
+            v-model="dialogVisible" 
+            :title="isEdit ? '编辑凭证' : '新建凭证'" 
+            width="900px"
+            destroy-on-close
+        >
+            <div class="voucher-header">
+                <el-form-item label="凭证号">
+                    <el-input v-model="voucherForm.voucher_no" disabled />
+                </el-form-item>
+                <el-form-item label="凭证日期">
+                    <el-date-picker v-model="voucherForm.voucher_date" type="date" placeholder="选择日期" style="width: 100%;" />
+                </el-form-item>
+                <el-form-item label="凭证类型">
+                    <el-select v-model="voucherForm.voucher_type" style="width: 100%;">
+                        <el-option label="收款凭证" :value="1"></el-option>
+                        <el-option label="付款凭证" :value="2"></el-option>
+                        <el-option label="转账凭证" :value="3"></el-option>
+                        <el-option label="通用凭证" :value="4"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="制单人">
+                    <el-input v-model="voucherForm.prepared_by" disabled />
+                </el-form-item>
+            </div>
+
+            <div class="voucher-items">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="margin: 0;">分录明细</h4>
+                    <el-button type="primary" size="small" @click="addVoucherItem">
+                        <el-icon><plus /></el-icon>
+                        添加分录
+                    </el-button>
+                </div>
+                <el-table :data="voucherForm.items" stripe border size="small">
+                    <el-table-column label="摘要" min-width="200">
+                        <template #default="{ row }">
+                            <el-input v-model="row.summary" placeholder="分录摘要" />
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="会计科目" width="200">
+                        <template #default="{ row }">
+                            <el-select 
+                                v-model="row.subject_id" 
+                                filterable 
+                                placeholder="选择科目"
+                                @change="(val) => onSubjectChange(val, row)"
+                                style="width: 100%;"
+                            >
+                                <el-option 
+                                    v-for="s in accountingSubjects" 
+                                    :key="s.subject_id" 
+                                    :label="`${s.subject_code} ${s.subject_name}`" 
+                                    :value="s.subject_id"
+                                />
+                            </el-select>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="借方金额" width="140">
+                        <template #default="{ row }">
+                            <el-input-number 
+                                v-model="row.debit_amount" 
+                                :min="0" 
+                                :precision="2" 
+                                :controls="false"
+                                style="width: 100%;"
+                                @change="onDebitChange(row)"
+                            />
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="贷方金额" width="140">
+                        <template #default="{ row }">
+                            <el-input-number 
+                                v-model="row.credit_amount" 
+                                :min="0" 
+                                :precision="2" 
+                                :controls="false"
+                                style="width: 100%;"
+                                @change="onCreditChange(row)"
+                            />
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="80" align="center">
+                        <template #default="{ $index }">
+                            <el-button type="danger" size="small" link @click="removeVoucherItem($index)">
+                                <el-icon><delete /></el-icon>
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div class="voucher-summary">
+                    <div class="summary-item">
+                        <div class="summary-label">借方合计</div>
+                        <div class="summary-value debit-value">¥{{ formatNumber(totalDebit) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">贷方合计</div>
+                        <div class="summary-value credit-value">¥{{ formatNumber(totalCredit) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">差额</div>
+                        <div :class="['summary-value', isBalanced ? 'balance-success' : 'balance-error']">
+                            ¥{{ formatNumber(Math.abs(totalDebit - totalCredit)) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="dialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="saveVoucher" :loading="saving" :disabled="!isBalanced">保存凭证</el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="detailDialogVisible" title="凭证详情" width="800px">
+            <div class="voucher-print" v-if="currentVoucher">
+                <div class="voucher-print-header">
+                    <div class="voucher-print-title">{{ getVoucherTypeText(currentVoucher.voucher_type) }}</div>
+                </div>
+                <div class="voucher-print-info">
+                    <span>凭证号：{{ currentVoucher.voucher_no }}</span>
+                    <span>日期：{{ currentVoucher.voucher_date?.substring(0, 10) }}</span>
+                    <span>制单人：{{ currentVoucher.prepared_by }}</span>
+                </div>
+                
+                <el-table :data="voucherItems" stripe border size="small">
+                    <el-table-column type="index" label="序号" width="60" />
+                    <el-table-column prop="summary" label="摘要" min-width="150" />
+                    <el-table-column prop="subject_name" label="会计科目" width="180" />
+                    <el-table-column prop="debit_amount" label="借方金额" width="120" align="right">
+                        <template #default="{ row }">
+                            <span v-if="row.debit_amount > 0">¥{{ formatNumber(row.debit_amount) }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="credit_amount" label="贷方金额" width="120" align="right">
+                        <template #default="{ row }">
+                            <span v-if="row.credit_amount > 0">¥{{ formatNumber(row.credit_amount) }}</span>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div class="voucher-summary">
+                    <div class="summary-item">
+                        <div class="summary-label">借方合计</div>
+                        <div class="summary-value debit-value">¥{{ formatNumber(currentVoucher.total_debit) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">贷方合计</div>
+                        <div class="summary-value credit-value">¥{{ formatNumber(currentVoucher.total_credit) }}</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; display: flex; justify-content: space-between;">
+                    <span>制单人：{{ currentVoucher.prepared_by }}</span>
+                    <span>审核人：{{ currentVoucher.reviewed_by || '-' }}</span>
+                    <span>状态：{{ currentVoucher.posted ? '已审核' : '待审核' }}</span>
+                </div>
+            </div>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="detailDialogVisible = false">关闭</el-button>
+                    <el-button 
+                        v-if="!currentVoucher?.posted" 
+                        type="success" 
+                        @click="auditVoucher(currentVoucher)"
+                    >审核通过</el-button>
+                    <el-button type="primary" @click="printVoucher(currentVoucher)">打印</el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <div v-if="loading" class="loading-overlay">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted } = Vue;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://likgolefqrhntbiscxdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+        const db = createClient(supabaseUrl, supabaseKey);
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const saving = ref(false);
+                const vouchers = ref([]);
+                const voucherItems = ref([]);
+                const accountingSubjects = ref([]);
+                const searchText = ref('');
+                const dateRange = ref(null);
+                const filterType = ref('');
+                const filterPosted = ref('');
+                const currentPage = ref(1);
+                const pageSize = ref(20);
+                const totalRecords = ref(0);
+                const dialogVisible = ref(false);
+                const detailDialogVisible = ref(false);
+                const isEdit = ref(false);
+                const currentVoucher = ref(null);
+
+                const statistics = reactive({
+                    monthCount: 0,
+                    pendingCount: 0,
+                    auditedCount: 0,
+                    totalDebit: 0,
+                    totalCredit: 0
+                });
+
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+
+                const voucherForm = reactive({
+                    voucher_id: null,
+                    voucher_no: '',
+                    voucher_date: new Date(),
+                    voucher_type: 4,
+                    summary: '',
+                    prepared_by: userInfo.real_name || userInfo.username || '',
+                    items: []
+                });
+
+                const filteredVouchers = computed(() => {
+                    let result = vouchers.value;
+                    
+                    if (searchText.value) {
+                        const search = searchText.value.toLowerCase();
+                        result = result.filter(v => 
+                            v.voucher_no?.toLowerCase().includes(search) ||
+                            v.summary?.toLowerCase().includes(search)
+                        );
+                    }
+                    
+                    if (dateRange.value && dateRange.value.length === 2) {
+                        const start = new Date(dateRange.value[0]);
+                        const end = new Date(dateRange.value[1]);
+                        result = result.filter(v => {
+                            const voucherDate = new Date(v.voucher_date);
+                            return voucherDate >= start && voucherDate <= end;
+                        });
+                    }
+                    
+                    if (filterType.value !== '') {
+                        result = result.filter(v => v.voucher_type === filterType.value);
+                    }
+                    
+                    if (filterPosted.value !== '') {
+                        result = result.filter(v => v.posted === filterPosted.value);
+                    }
+                    
+                    totalRecords.value = result.length;
+                    
+                    const start = (currentPage.value - 1) * pageSize.value;
+                    const end = start + pageSize.value;
+                    return result.slice(start, end);
+                });
+
+                const totalDebit = computed(() => {
+                    return voucherForm.items.reduce((sum, item) => sum + (item.debit_amount || 0), 0);
+                });
+
+                const totalCredit = computed(() => {
+                    return voucherForm.items.reduce((sum, item) => sum + (item.credit_amount || 0), 0);
+                });
+
+                const isBalanced = computed(() => {
+                    return Math.abs(totalDebit.value - totalCredit.value) < 0.01 && voucherForm.items.length >= 2;
+                });
+
+                const loadVouchers = async () => {
+                    loading.value = true;
+                    try {
+                        const { data, error } = await db
+                            .from('accounting_vouchers')
+                            .select('*')
+                            .order('voucher_date', { ascending: false });
+                        
+                        if (error) throw error;
+                        vouchers.value = data || [];
+                        updateStatistics();
+                    } catch (err) {
+                        console.error('加载凭证数据失败:', err);
+                        ElementPlus.ElMessage.error('加载凭证数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadAccountingSubjects = async () => {
+                    try {
+                        const { data, error } = await db
+                            .from('accounting_subjects')
+                            .select('*')
+                            .eq('is_active', true)
+                            .order('subject_code');
+                        
+                        if (error) throw error;
+                        accountingSubjects.value = data || [];
+                    } catch (err) {
+                        console.error('加载会计科目失败:', err);
+                    }
+                };
+
+                const updateStatistics = () => {
+                    const now = new Date();
+                    const currentMonth = now.getMonth();
+                    const currentYear = now.getFullYear();
+                    
+                    const monthVouchers = vouchers.value.filter(v => {
+                        const voucherDate = new Date(v.voucher_date);
+                        return voucherDate.getMonth() === currentMonth && 
+                               voucherDate.getFullYear() === currentYear;
+                    });
+                    
+                    statistics.monthCount = monthVouchers.length;
+                    statistics.pendingCount = vouchers.value.filter(v => !v.posted).length;
+                    statistics.auditedCount = vouchers.value.filter(v => v.posted).length;
+                    statistics.totalDebit = monthVouchers.reduce((sum, v) => sum + (v.total_debit || 0), 0);
+                    statistics.totalCredit = monthVouchers.reduce((sum, v) => sum + (v.total_credit || 0), 0);
+                };
+
+                const generateVoucherNo = () => {
+                    const date = new Date();
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const random = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+                    return `V${year}${month}${day}${random}`;
+                };
+
+                const openAddDialog = () => {
+                    isEdit.value = false;
+                    Object.assign(voucherForm, {
+                        voucher_id: null,
+                        voucher_no: generateVoucherNo(),
+                        voucher_date: new Date(),
+                        voucher_type: 4,
+                        summary: '',
+                        prepared_by: userInfo.real_name || userInfo.username || '',
+                        items: [
+                            { subject_id: null, subject_name: '', summary: '', debit_amount: 0, credit_amount: 0 },
+                            { subject_id: null, subject_name: '', summary: '', debit_amount: 0, credit_amount: 0 }
+                        ]
+                    });
+                    dialogVisible.value = true;
+                };
+
+                const editVoucher = async (row) => {
+                    if (row.posted) {
+                        ElementPlus.ElMessage.warning('已审核的凭证不能编辑');
+                        return;
+                    }
+
+                    isEdit.value = true;
+                    
+                    const { data: items, error } = await db
+                        .from('voucher_items')
+                        .select(`
+                            item_id,
+                            voucher_id,
+                            subject_id,
+                            debit_amount,
+                            credit_amount,
+                            item_summary
+                        `)
+                        .eq('voucher_id', row.voucher_id);
+                    
+                    if (error) {
+                        ElementPlus.ElMessage.error('加载凭证明细失败');
+                        return;
+                    }
+
+                    const itemsWithSubject = await Promise.all((items || []).map(async item => {
+                        const { data: subject } = await db
+                            .from('accounting_subjects')
+                            .select('subject_name')
+                            .eq('subject_id', item.subject_id)
+                            .single();
+                        return {
+                            ...item,
+                            subject_name: subject?.subject_name || '',
+                            summary: item.item_summary || ''
+                        };
+                    }));
+
+                    Object.assign(voucherForm, {
+                        voucher_id: row.voucher_id,
+                        voucher_no: row.voucher_no,
+                        voucher_date: row.voucher_date,
+                        voucher_type: row.voucher_type,
+                        summary: row.summary || '',
+                        prepared_by: row.prepared_by,
+                        items: itemsWithSubject
+                    });
+                    dialogVisible.value = true;
+                };
+
+                const addVoucherItem = () => {
+                    voucherForm.items.push({
+                        subject_id: null,
+                        subject_name: '',
+                        summary: '',
+                        debit_amount: 0,
+                        credit_amount: 0
+                    });
+                };
+
+                const removeVoucherItem = (index) => {
+                    if (voucherForm.items.length > 2) {
+                        voucherForm.items.splice(index, 1);
+                    } else {
+                        ElementPlus.ElMessage.warning('凭证至少需要两条分录');
+                    }
+                };
+
+                const onSubjectChange = (subjectId, row) => {
+                    const subject = accountingSubjects.value.find(s => s.subject_id === subjectId);
+                    if (subject) {
+                        row.subject_name = subject.subject_name;
+                    }
+                };
+
+                const onDebitChange = (row) => {
+                    if (row.debit_amount > 0) {
+                        row.credit_amount = 0;
+                    }
+                };
+
+                const onCreditChange = (row) => {
+                    if (row.credit_amount > 0) {
+                        row.debit_amount = 0;
+                    }
+                };
+
+                const saveVoucher = async () => {
+                    if (!isBalanced.value) {
+                        ElementPlus.ElMessage.warning('凭证借贷不平衡，请检查金额');
+                        return;
+                    }
+
+                    saving.value = true;
+                    try {
+                        const voucherData = {
+                            voucher_no: voucherForm.voucher_no,
+                            voucher_date: voucherForm.voucher_date,
+                            voucher_type: voucherForm.voucher_type,
+                            summary: voucherForm.summary || null,
+                            total_debit: totalDebit.value,
+                            total_credit: totalCredit.value,
+                            prepared_by: voucherForm.prepared_by
+                        };
+
+                        if (isEdit.value) {
+                            const { error } = await db
+                                .from('accounting_vouchers')
+                                .update(voucherData)
+                                .eq('voucher_id', voucherForm.voucher_id);
+                            if (error) throw error;
+
+                            await db.from('voucher_items').delete().eq('voucher_id', voucherForm.voucher_id);
+                            
+                            const itemsData = voucherForm.items.map(item => ({
+                                voucher_id: voucherForm.voucher_id,
+                                subject_id: item.subject_id,
+                                debit_amount: item.debit_amount || 0,
+                                credit_amount: item.credit_amount || 0,
+                                item_summary: item.summary
+                            }));
+                            const { error: itemsError } = await db.from('voucher_items').insert(itemsData);
+                            if (itemsError) throw itemsError;
+
+                            ElementPlus.ElMessage.success('凭证更新成功');
+                        } else {
+                            const { data: newVoucher, error } = await db
+                                .from('accounting_vouchers')
+                                .insert([voucherData])
+                                .select();
+                            if (error) throw error;
+
+                            const voucherId = newVoucher[0].voucher_id;
+                            const itemsData = voucherForm.items.map(item => ({
+                                voucher_id: voucherId,
+                                subject_id: item.subject_id,
+                                debit_amount: item.debit_amount || 0,
+                                credit_amount: item.credit_amount || 0,
+                                item_summary: item.summary
+                            }));
+                            const { error: itemsError } = await db.from('voucher_items').insert(itemsData);
+                            if (itemsError) throw itemsError;
+
+                            ElementPlus.ElMessage.success('凭证创建成功');
+                        }
+
+                        dialogVisible.value = false;
+                        loadVouchers();
+                    } catch (err) {
+                        console.error('保存凭证失败:', err);
+                        ElementPlus.ElMessage.error('保存凭证失败: ' + err.message);
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                const auditVoucher = async (row) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要审核凭证"${row.voucher_no}"吗？`,
+                            '确认审核',
+                            { type: 'warning' }
+                        );
+
+                        const { error } = await db
+                            .from('accounting_vouchers')
+                            .update({
+                                posted: true,
+                                reviewed_by: userInfo.real_name || userInfo.username,
+                                posted_at: new Date()
+                            })
+                            .eq('voucher_id', row.voucher_id);
+                        
+                        if (error) throw error;
+                        
+                        ElementPlus.ElMessage.success('凭证审核成功');
+                        detailDialogVisible.value = false;
+                        loadVouchers();
+                    } catch (err) {
+                        if (err !== 'cancel') {
+                            console.error('审核凭证失败:', err);
+                            ElementPlus.ElMessage.error('审核凭证失败');
+                        }
+                    }
+                };
+
+                const deleteVoucher = async (row) => {
+                    if (row.posted) {
+                        ElementPlus.ElMessage.warning('已审核的凭证不能删除');
+                        return;
+                    }
+
+                    try {
+                        await ElementPlus.ElMessageBox.confirm(
+                            `确定要删除凭证"${row.voucher_no}"吗？`,
+                            '确认删除',
+                            { type: 'warning' }
+                        );
+
+                        await db.from('voucher_items').delete().eq('voucher_id', row.voucher_id);
+                        
+                        const { error } = await db
+                            .from('accounting_vouchers')
+                            .delete()
+                            .eq('voucher_id', row.voucher_id);
+                        
+                        if (error) throw error;
+                        
+                        ElementPlus.ElMessage.success('凭证删除成功');
+                        loadVouchers();
+                    } catch (err) {
+                        if (err !== 'cancel') {
+                            console.error('删除凭证失败:', err);
+                            ElementPlus.ElMessage.error('删除凭证失败');
+                        }
+                    }
+                };
+
+                const viewVoucher = async (row) => {
+                    currentVoucher.value = row;
+                    
+                    const { data: items, error } = await db
+                        .from('voucher_items')
+                        .select(`
+                            item_id,
+                            subject_id,
+                            debit_amount,
+                            credit_amount,
+                            item_summary
+                        `)
+                        .eq('voucher_id', row.voucher_id);
+                    
+                    if (error) {
+                        ElementPlus.ElMessage.error('加载凭证明细失败');
+                        return;
+                    }
+
+                    const itemsWithSubject = await Promise.all((items || []).map(async item => {
+                        const { data: subject } = await db
+                            .from('accounting_subjects')
+                            .select('subject_name')
+                            .eq('subject_id', item.subject_id)
+                            .single();
+                        return {
+                            ...item,
+                            subject_name: subject?.subject_name || '',
+                            summary: item.item_summary || ''
+                        };
+                    }));
+
+                    voucherItems.value = itemsWithSubject;
+                    detailDialogVisible.value = true;
+                };
+
+                const printVoucher = (row) => {
+                    viewVoucher(row);
+                    setTimeout(() => {
+                        window.print();
+                    }, 500);
+                };
+
+                const handleSearch = () => {
+                    currentPage.value = 1;
+                };
+
+                const handleSizeChange = (val) => {
+                    pageSize.value = val;
+                    currentPage.value = 1;
+                };
+
+                const handleCurrentChange = (val) => {
+                    currentPage.value = val;
+                };
+
+                const getVoucherTypeText = (type) => {
+                    const texts = { 1: '收款凭证', 2: '付款凭证', 3: '转账凭证', 4: '通用凭证' };
+                    return texts[type] || '未知';
+                };
+
+                const getVoucherTypeTag = (type) => {
+                    const tags = { 1: 'success', 2: 'danger', 3: 'warning', 4: 'primary' };
+                    return tags[type] || 'info';
+                };
+
+                const formatNumber = (num) => {
+                    if (num === null || num === undefined) return '0.00';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                const exportToExcel = () => {
+                    const data = vouchers.value.map(v => ({
+                        '凭证号': v.voucher_no,
+                        '凭证日期': v.voucher_date?.substring(0, 10),
+                        '凭证类型': getVoucherTypeText(v.voucher_type),
+                        '摘要': v.summary || '',
+                        '借方金额': v.total_debit,
+                        '贷方金额': v.total_credit,
+                        '制单人': v.prepared_by,
+                        '审核人': v.reviewed_by || '',
+                        '状态': v.posted ? '已审核' : '待审核'
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '凭证列表');
+                    XLSX.writeFile(wb, `凭证列表_${new Date().toLocaleDateString()}.xlsx`);
+                };
+
+                onMounted(() => {
+                    loadVouchers();
+                    loadAccountingSubjects();
+                });
+
+                return {
+                    loading,
+                    saving,
+                    vouchers,
+                    voucherItems,
+                    accountingSubjects,
+                    searchText,
+                    dateRange,
+                    filterType,
+                    filterPosted,
+                    currentPage,
+                    pageSize,
+                    totalRecords,
+                    filteredVouchers,
+                    dialogVisible,
+                    detailDialogVisible,
+                    isEdit,
+                    currentVoucher,
+                    voucherForm,
+                    statistics,
+                    totalDebit,
+                    totalCredit,
+                    isBalanced,
+                    openAddDialog,
+                    editVoucher,
+                    addVoucherItem,
+                    removeVoucherItem,
+                    onSubjectChange,
+                    onDebitChange,
+                    onCreditChange,
+                    saveVoucher,
+                    auditVoucher,
+                    deleteVoucher,
+                    viewVoucher,
+                    printVoucher,
+                    handleSearch,
+                    handleSizeChange,
+                    handleCurrentChange,
+                    getVoucherTypeText,
+                    getVoucherTypeTag,
+                    formatNumber,
+                    exportToExcel
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                app.component(key, component);
+            }
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

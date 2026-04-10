@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>应付账款 - 热卷管理系统</title>
+    <link rel="stylesheet" href="element-plus.css">
+    <script src="vue.global.js"></script>
+    <script src="element-plus.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        .page-header {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .main-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        .stat-card .label {
+            color: #909399;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .stat-card.danger .value {
+            color: #f56c6c;
+        }
+        .stat-card.warning .value {
+            color: #e6a23c;
+        }
+        .stat-card.success .value {
+            color: #67c23a;
+        }
+        .content-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #ebeef5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .amount-cell {
+            text-align: right;
+            font-family: monospace;
+        }
+        .amount-cell.positive {
+            color: #67c23a;
+        }
+        .amount-cell.negative {
+            color: #f56c6c;
+        }
+        .status-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .status-pending {
+            background: #fef0f0;
+            color: #f56c6c;
+        }
+        .status-partial {
+            background: #fdf6ec;
+            color: #e6a23c;
+        }
+        .status-paid {
+            background: #f0f9eb;
+            color: #67c23a;
+        }
+        .overdue {
+            color: #f56c6c;
+            font-weight: 600;
+        }
+        .aging-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #ebeef5;
+            overflow: hidden;
+            display: flex;
+        }
+        .aging-segment {
+            height: 100%;
+        }
+        .aging-current { background: #67c23a; }
+        .aging-30 { background: #e6a23c; }
+        .aging-60 { background: #f56c6c; }
+        .aging-90 { background: #909399; }
+        .dialog-footer {
+            text-align: right;
+            padding-top: 20px;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .form-row.single {
+            grid-template-columns: 1fr;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #e74c3c;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="page-header">
+            <h1>💰 应付账款管理</h1>
+            <div class="header-actions">
+                <button class="back-btn" @click="goBack">← 返回主页</button>
+            </div>
+        </div>
+
+        <div class="main-container">
+            <div class="stats-cards">
+                <div class="stat-card danger">
+                    <div class="label">应付总额</div>
+                    <div class="value">¥{{ formatNumber(totalPayable) }}</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="label">待付款金额</div>
+                    <div class="value">¥{{ formatNumber(pendingAmount) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">已付款金额</div>
+                    <div class="value">¥{{ formatNumber(paidAmount) }}</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="label">逾期金额</div>
+                    <div class="value">¥{{ formatNumber(overdueAmount) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">供应商数量</div>
+                    <div class="value">{{ supplierCount }}</div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>应付账款列表</h3>
+                    <div>
+                        <el-button type="primary" @click="showPaymentDialog" :disabled="!selectedPayable">
+                            💳 付款登记
+                        </el-button>
+                        <el-button @click="exportToExcel">📥 导出Excel</el-button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="filter-bar">
+                        <el-input v-model="searchText" placeholder="搜索供应商/单号" style="width: 200px" clearable>
+                            <template #prefix>
+                                <el-icon><search /></el-icon>
+                            </template>
+                        </el-input>
+                        <el-select v-model="filterStatus" placeholder="付款状态" clearable style="width: 150px">
+                            <el-option label="全部" value=""></el-option>
+                            <el-option label="待付款" value="1"></el-option>
+                            <el-option label="部分付款" value="2"></el-option>
+                            <el-option label="已付款" value="3"></el-option>
+                        </el-select>
+                        <el-date-picker
+                            v-model="dateRange"
+                            type="daterange"
+                            range-separator="至"
+                            start-placeholder="开始日期"
+                            end-placeholder="结束日期"
+                            style="width: 260px"
+                        ></el-date-picker>
+                    </div>
+
+                    <el-table :data="filteredPayables" style="width: 100%" @selection-change="handleSelectionChange" v-loading="loading">
+                        <el-table-column type="selection" width="50"></el-table-column>
+                        <el-table-column prop="ap_no" label="应付单号" width="140"></el-table-column>
+                        <el-table-column prop="supplier_name" label="供应商" width="150"></el-table-column>
+                        <el-table-column prop="invoice_no" label="发票号" width="140"></el-table-column>
+                        <el-table-column label="应付金额" width="120" align="right">
+                            <template #default="{ row }">
+                                <span class="amount-cell negative">¥{{ formatNumber(row.total_amount) }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="已付金额" width="120" align="right">
+                            <template #default="{ row }">
+                                <span class="amount-cell positive">¥{{ formatNumber(row.paid_amount || 0) }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="剩余金额" width="120" align="right">
+                            <template #default="{ row }">
+                                <span class="amount-cell negative">¥{{ formatNumber(row.remaining_amount) }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="ap_date" label="应付日期" width="110"></el-table-column>
+                        <el-table-column prop="due_date" label="到期日" width="110">
+                            <template #default="{ row }">
+                                <span :class="{ overdue: isOverdue(row.due_date, row.status) }">
+                                    {{ row.due_date }}
+                                </span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="逾期天数" width="90" align="center">
+                            <template #default="{ row }">
+                                <span v-if="getOverdueDays(row.due_date, row.status) > 0" class="overdue">
+                                    {{ getOverdueDays(row.due_date, row.status) }}天
+                                </span>
+                                <span v-else>-</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="状态" width="100" align="center">
+                            <template #default="{ row }">
+                                <span :class="['status-tag', getStatusClass(row.status)]">
+                                    {{ getStatusText(row.status) }}
+                                </span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="120" fixed="right">
+                            <template #default="{ row }">
+                                <el-button type="primary" link size="small" @click="viewPayableDetail(row)">
+                                    详情
+                                </el-button>
+                                <el-button type="success" link size="small" @click="makePayment(row)" v-if="row.status !== 3">
+                                    付款
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+
+                    <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #909399;">共 {{ totalRecords }} 条记录</span>
+                        <el-pagination
+                            v-model:current-page="currentPage"
+                            v-model:page-size="pageSize"
+                            :page-sizes="[10, 20, 50, 100]"
+                            layout="sizes, prev, pager, next"
+                            :total="totalRecords"
+                        ></el-pagination>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>账龄分析</h3>
+                </div>
+                <div class="card-body">
+                    <div class="aging-bar" style="margin-bottom: 10px;">
+                        <div class="aging-segment aging-current" :style="{ width: agingPercent.current + '%' }"></div>
+                        <div class="aging-segment aging-30" :style="{ width: agingPercent.days30 + '%' }"></div>
+                        <div class="aging-segment aging-60" :style="{ width: agingPercent.days60 + '%' }"></div>
+                        <div class="aging-segment aging-90" :style="{ width: agingPercent.days90 + '%' }"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #606266; font-size: 13px;">
+                        <span>未到期: ¥{{ formatNumber(agingAnalysis.current) }}</span>
+                        <span>1-30天: ¥{{ formatNumber(agingAnalysis.days30) }}</span>
+                        <span>31-60天: ¥{{ formatNumber(agingAnalysis.days60) }}</span>
+                        <span>61-90天: ¥{{ formatNumber(agingAnalysis.days90) }}</span>
+                        <span>90天以上: ¥{{ formatNumber(agingAnalysis.over90) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <el-dialog v-model="paymentDialogVisible" title="付款登记" width="500px">
+            <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
+                <el-form-item label="应付单号">
+                    <el-input :value="selectedPayable?.ap_no" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="供应商">
+                    <el-input :value="selectedPayable?.supplier_name" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="应付金额">
+                    <el-input :value="'¥' + formatNumber(selectedPayable?.total_amount)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="已付金额">
+                    <el-input :value="'¥' + formatNumber(selectedPayable?.paid_amount || 0)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="剩余金额">
+                    <el-input :value="'¥' + formatNumber(selectedPayable?.remaining_amount)" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="付款金额" prop="amount">
+                    <el-input-number v-model="paymentForm.amount" :min="0" :max="selectedPayable?.remaining_amount" :precision="2" style="width: 100%"></el-input-number>
+                </el-form-item>
+                <el-form-item label="付款日期" prop="payment_date">
+                    <el-date-picker v-model="paymentForm.payment_date" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="付款方式" prop="payment_method">
+                    <el-select v-model="paymentForm.payment_method" placeholder="选择付款方式" style="width: 100%">
+                        <el-option label="银行转账" value="bank"></el-option>
+                        <el-option label="现金" value="cash"></el-option>
+                        <el-option label="支票" value="check"></el-option>
+                        <el-option label="承兑汇票" value="acceptance"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="付款账户" prop="bank_account_id">
+                    <el-select v-model="paymentForm.bank_account_id" placeholder="选择付款账户" style="width: 100%">
+                        <el-option v-for="acc in bankAccounts" :key="acc.account_id" :label="acc.account_name + ' (' + acc.bank_account + ')'" :value="acc.account_id"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="paymentForm.remark" type="textarea" :rows="2"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="paymentDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitPayment" :loading="saving">确认付款</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="detailDialogVisible" title="应付账款详情" width="700px">
+            <el-descriptions :column="2" border v-if="selectedPayable">
+                <el-descriptions-item label="应付单号">{{ selectedPayable.ap_no }}</el-descriptions-item>
+                <el-descriptions-item label="供应商">{{ selectedPayable.supplier_name }}</el-descriptions-item>
+                <el-descriptions-item label="发票号">{{ selectedPayable.invoice_no }}</el-descriptions-item>
+                <el-descriptions-item label="关联采购单">{{ selectedPayable.purchase_order_no }}</el-descriptions-item>
+                <el-descriptions-item label="应付金额">¥{{ formatNumber(selectedPayable.total_amount) }}</el-descriptions-item>
+                <el-descriptions-item label="已付金额">¥{{ formatNumber(selectedPayable.paid_amount || 0) }}</el-descriptions-item>
+                <el-descriptions-item label="剩余金额">¥{{ formatNumber(selectedPayable.remaining_amount) }}</el-descriptions-item>
+                <el-descriptions-item label="状态">{{ getStatusText(selectedPayable.status) }}</el-descriptions-item>
+                <el-descriptions-item label="应付日期">{{ selectedPayable.ap_date }}</el-descriptions-item>
+                <el-descriptions-item label="到期日">{{ selectedPayable.due_date }}</el-descriptions-item>
+                <el-descriptions-item label="备注" :span="2">{{ selectedPayable.remark || '-' }}</el-descriptions-item>
+            </el-descriptions>
+            <h4 style="margin: 20px 0 10px;">付款记录</h4>
+            <el-table :data="paymentRecords" style="width: 100%" size="small">
+                <el-table-column prop="payment_date" label="付款日期" width="110"></el-table-column>
+                <el-table-column label="付款金额" width="120" align="right">
+                    <template #default="{ row }">
+                        ¥{{ formatNumber(row.amount) }}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="payment_method" label="付款方式" width="100">
+                    <template #default="{ row }">
+                        {{ getPaymentMethodText(row.payment_method) }}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="remark" label="备注"></el-table-column>
+            </el-table>
+        </el-dialog>
+
+        <div class="loading-overlay" v-if="loading">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://likgolefqrhntbiscxdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2dvbGVmcXJobnRiaXNjeGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMTk4NjUsImV4cCI6MjA4MTc5NTg2NX0.LIRHcrP7ZcZl2RUkDnwRcEnCy1WrnC0AMXvrMkt2UP4';
+        const db = createClient(supabaseUrl, supabaseKey);
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const saving = ref(false);
+                const payables = ref([]);
+                const suppliers = ref([]);
+                const bankAccounts = ref([]);
+                const paymentRecords = ref([]);
+                const selectedPayable = ref(null);
+                const searchText = ref('');
+                const filterStatus = ref('');
+                const dateRange = ref([]);
+                const currentPage = ref(1);
+                const pageSize = ref(20);
+                const totalRecords = ref(0);
+                const paymentDialogVisible = ref(false);
+                const detailDialogVisible = ref(false);
+                const paymentFormRef = ref(null);
+
+                const paymentForm = reactive({
+                    amount: 0,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: 'bank',
+                    bank_account_id: null,
+                    remark: ''
+                });
+
+                const paymentRules = {
+                    amount: [{ required: true, message: '请输入付款金额', trigger: 'blur' }],
+                    payment_date: [{ required: true, message: '请选择付款日期', trigger: 'change' }],
+                    payment_method: [{ required: true, message: '请选择付款方式', trigger: 'change' }]
+                };
+
+                const filteredPayables = computed(() => {
+                    let result = payables.value;
+                    
+                    if (filterStatus.value) {
+                        result = result.filter(r => r.status === parseInt(filterStatus.value));
+                    }
+                    
+                    if (searchText.value) {
+                        const search = searchText.value.toLowerCase();
+                        result = result.filter(r => 
+                            r.supplier_name?.toLowerCase().includes(search) ||
+                            r.ap_no?.toLowerCase().includes(search)
+                        );
+                    }
+                    
+                    if (dateRange.value && dateRange.value.length === 2) {
+                        const start = new Date(dateRange.value[0]);
+                        const end = new Date(dateRange.value[1]);
+                        result = result.filter(r => {
+                            const apDate = new Date(r.ap_date);
+                            return apDate >= start && apDate <= end;
+                        });
+                    }
+                    
+                    totalRecords.value = result.length;
+                    
+                    const start = (currentPage.value - 1) * pageSize.value;
+                    const end = start + pageSize.value;
+                    return result.slice(start, end);
+                });
+
+                const totalPayable = computed(() => {
+                    return payables.value.reduce((sum, r) => sum + (r.total_amount || 0), 0);
+                });
+
+                const pendingAmount = computed(() => {
+                    return payables.value.filter(r => r.status !== 3).reduce((sum, r) => sum + (r.remaining_amount || 0), 0);
+                });
+
+                const paidAmount = computed(() => {
+                    return payables.value.reduce((sum, r) => sum + (r.paid_amount || 0), 0);
+                });
+
+                const overdueAmount = computed(() => {
+                    return payables.value.filter(r => isOverdue(r.due_date, r.status)).reduce((sum, r) => sum + (r.remaining_amount || 0), 0);
+                });
+
+                const supplierCount = computed(() => {
+                    const uniqueSuppliers = new Set(payables.value.map(r => r.supplier_id));
+                    return uniqueSuppliers.size;
+                });
+
+                const agingAnalysis = computed(() => {
+                    const now = new Date();
+                    let current = 0, days30 = 0, days60 = 0, days90 = 0, over90 = 0;
+                    
+                    payables.value.filter(r => r.status !== 3).forEach(r => {
+                        const dueDate = new Date(r.due_date);
+                        const diffDays = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
+                        
+                        if (diffDays < 0) {
+                            current += r.remaining_amount || 0;
+                        } else if (diffDays <= 30) {
+                            days30 += r.remaining_amount || 0;
+                        } else if (diffDays <= 60) {
+                            days60 += r.remaining_amount || 0;
+                        } else if (diffDays <= 90) {
+                            days90 += r.remaining_amount || 0;
+                        } else {
+                            over90 += r.remaining_amount || 0;
+                        }
+                    });
+                    
+                    return { current, days30, days60, days90, over90 };
+                });
+
+                const agingPercent = computed(() => {
+                    const total = agingAnalysis.value.current + agingAnalysis.value.days30 + agingAnalysis.value.days60 + agingAnalysis.value.days90;
+                    if (total === 0) return { current: 0, days30: 0, days60: 0, days90: 0 };
+                    return {
+                        current: (agingAnalysis.value.current / total) * 100,
+                        days30: (agingAnalysis.value.days30 / total) * 100,
+                        days60: (agingAnalysis.value.days60 / total) * 100,
+                        days90: (agingAnalysis.value.days90 / total) * 100
+                    };
+                });
+
+                const loadPayables = async () => {
+                    loading.value = true;
+                    try {
+                        const { data, error } = await db
+                            .from('accounts_payable')
+                            .select('*')
+                            .order('ap_date', { ascending: false });
+                        
+                        if (error) throw error;
+                        payables.value = data || [];
+                    } catch (e) {
+                        console.error('加载应付账款失败:', e);
+                        ElementPlus.ElMessage.error('加载应付账款失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const loadSuppliers = async () => {
+                    try {
+                        const { data, error } = await db
+                            .from('suppliers')
+                            .select('supplier_id, supplier_name')
+                            .eq('status', 1)
+                            .order('supplier_name', { ascending: true });
+                        
+                        if (error) throw error;
+                        suppliers.value = data || [];
+                    } catch (e) {
+                        console.error('加载供应商数据失败:', e);
+                    }
+                };
+
+                const loadBankAccounts = async () => {
+                    try {
+                        const { data, error } = await db
+                            .from('bank_accounts')
+                            .select('account_id, account_name, bank_account, account_type')
+                            .eq('status', 1);
+                        
+                        if (error) throw error;
+                        bankAccounts.value = data || [];
+                    } catch (e) {
+                        console.error('加载银行账户失败:', e);
+                    }
+                };
+
+                const handleSelectionChange = (selection) => {
+                    selectedPayable.value = selection.length > 0 ? selection[0] : null;
+                };
+
+                const showPaymentDialog = () => {
+                    if (!selectedPayable.value) return;
+                    paymentForm.amount = selectedPayable.value.remaining_amount;
+                    paymentForm.payment_date = new Date().toISOString().split('T')[0];
+                    paymentForm.payment_method = 'bank';
+                    paymentForm.bank_account_id = null;
+                    paymentForm.remark = '';
+                    paymentDialogVisible.value = true;
+                };
+
+                const makePayment = (row) => {
+                    selectedPayable.value = row;
+                    showPaymentDialog();
+                };
+
+                const submitPayment = async () => {
+                    if (!paymentFormRef.value) return;
+                    
+                    await paymentFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        
+                        saving.value = true;
+                        try {
+                            const newPaidAmount = (selectedPayable.value.paid_amount || 0) + paymentForm.amount;
+                            const newRemainingAmount = selectedPayable.value.total_amount - newPaidAmount;
+                            const newStatus = newRemainingAmount <= 0 ? 3 : (newPaidAmount > 0 ? 2 : 1);
+
+                            const { error: updateError } = await db
+                                .from('accounts_payable')
+                                .update({
+                                    paid_amount: newPaidAmount,
+                                    remaining_amount: Math.max(0, newRemainingAmount),
+                                    status: newStatus,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('ap_id', selectedPayable.value.ap_id);
+
+                            if (updateError) throw updateError;
+
+                            const { error: recordError } = await db
+                                .from('payment_records')
+                                .insert({
+                                    payable_id: selectedPayable.value.ap_id,
+                                    amount: paymentForm.amount,
+                                    payment_date: paymentForm.payment_date,
+                                    payment_method: paymentForm.payment_method,
+                                    bank_account_id: paymentForm.bank_account_id,
+                                    remark: paymentForm.remark,
+                                    created_at: new Date().toISOString()
+                                });
+
+                            if (recordError) throw recordError;
+
+                            ElementPlus.ElMessage.success('付款登记成功');
+                            paymentDialogVisible.value = false;
+                            loadPayables();
+                        } catch (e) {
+                            console.error('付款登记失败:', e);
+                            ElementPlus.ElMessage.error('付款登记失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const viewPayableDetail = async (row) => {
+                    selectedPayable.value = row;
+                    detailDialogVisible.value = true;
+                    
+                    try {
+                        const { data, error } = await db
+                            .from('payment_records')
+                            .select('*')
+                            .eq('payable_id', row.ap_id)
+                            .order('payment_date', { ascending: false });
+                        
+                        if (error) throw error;
+                        paymentRecords.value = data || [];
+                    } catch (e) {
+                        console.error('加载付款记录失败:', e);
+                        paymentRecords.value = [];
+                    }
+                };
+
+                const isOverdue = (dueDate, status) => {
+                    if (status === 3) return false;
+                    return new Date(dueDate) < new Date();
+                };
+
+                const getOverdueDays = (dueDate, status) => {
+                    if (status === 3) return 0;
+                    const diff = Math.floor((new Date() - new Date(dueDate)) / (1000 * 60 * 60 * 24));
+                    return diff > 0 ? diff : 0;
+                };
+
+                const getStatusText = (status) => {
+                    const statusMap = { 1: '待付款', 2: '部分付款', 3: '已付款' };
+                    return statusMap[status] || '未知';
+                };
+
+                const getStatusClass = (status) => {
+                    const classMap = { 1: 'status-pending', 2: 'status-partial', 3: 'status-paid' };
+                    return classMap[status] || '';
+                };
+
+                const getPaymentMethodText = (method) => {
+                    const methodMap = { bank: '银行转账', cash: '现金', check: '支票', acceptance: '承兑汇票' };
+                    return methodMap[method] || method;
+                };
+
+                const formatNumber = (num) => {
+                    if (num === null || num === undefined) return '0.00';
+                    return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                const exportToExcel = () => {
+                    const data = filteredPayables.value.map(r => ({
+                        '应付单号': r.ap_no,
+                        '供应商': r.supplier_name,
+                        '发票号': r.invoice_no,
+                        '应付金额': r.total_amount,
+                        '已付金额': r.paid_amount || 0,
+                        '剩余金额': r.remaining_amount,
+                        '应付日期': r.ap_date,
+                        '到期日': r.due_date,
+                        '状态': getStatusText(r.status)
+                    }));
+                    
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '应付账款');
+                    XLSX.writeFile(wb, `应付账款_${new Date().toISOString().split('T')[0]}.xlsx`);
+                };
+
+                const goBack = () => {
+                    window.location.href = 'user-view.html';
+                };
+
+                onMounted(() => {
+                    loadPayables();
+                    loadSuppliers();
+                    loadBankAccounts();
+                });
+
+                return {
+                    loading,
+                    saving,
+                    payables,
+                    suppliers,
+                    bankAccounts,
+                    paymentRecords,
+                    selectedPayable,
+                    searchText,
+                    filterStatus,
+                    dateRange,
+                    currentPage,
+                    pageSize,
+                    totalRecords,
+                    paymentDialogVisible,
+                    detailDialogVisible,
+                    paymentFormRef,
+                    paymentForm,
+                    paymentRules,
+                    filteredPayables,
+                    totalPayable,
+                    pendingAmount,
+                    paidAmount,
+                    overdueAmount,
+                    supplierCount,
+                    agingAnalysis,
+                    agingPercent,
+                    handleSelectionChange,
+                    showPaymentDialog,
+                    makePayment,
+                    submitPayment,
+                    viewPayableDetail,
+                    isOverdue,
+                    getOverdueDays,
+                    getStatusText,
+                    getStatusClass,
+                    getPaymentMethodText,
+                    formatNumber,
+                    exportToExcel,
+                    goBack
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                app.component(key, component);
+            }
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>

@@ -229,6 +229,89 @@
             justify-content: flex-end;
             gap: 10px;
         }
+        .finance-dashboard {
+            padding: 10px;
+        }
+        .finance-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ebeef5;
+        }
+        .finance-header h3 {
+            font-size: 24px;
+            color: #303133;
+            margin-bottom: 8px;
+        }
+        .finance-subtitle {
+            color: #909399;
+            font-size: 14px;
+        }
+        .finance-quick-entry {
+            display: flex;
+            align-items: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 25px;
+            color: white;
+        }
+        .finance-quick-entry:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        .quick-entry-icon {
+            font-size: 48px;
+            margin-right: 20px;
+        }
+        .quick-entry-content {
+            flex: 1;
+        }
+        .quick-entry-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .quick-entry-desc {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .quick-entry-arrow {
+            font-size: 28px;
+            opacity: 0.8;
+            transition: transform 0.3s ease;
+        }
+        .finance-quick-entry:hover .quick-entry-arrow {
+            transform: translateX(8px);
+        }
+        .finance-stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        .finance-stat-item {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            background: #f5f7fa;
+            border-radius: 12px;
+            gap: 15px;
+        }
+        .finance-stat-item .stat-icon {
+            font-size: 32px;
+        }
+        .finance-stat-item .stat-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 4px;
+        }
+        .finance-stat-item .stat-value {
+            font-size: 12px;
+            color: #909399;
+        }
         @media (max-width: 768px) {
             .header {
                 padding: 15px;
@@ -591,6 +674,56 @@
                             <div v-if="filteredTransfer.length === 0 && !transferLoading" class="empty-state">
                                 <div class="empty-state-icon">📋</div>
                                 <p>暂无转让记录</p>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+                    <el-tab-pane label="销售财务" name="finance" v-if="currentUser?.canViewFinance">
+                        <div class="card">
+                            <div class="finance-dashboard">
+                                <div class="finance-header">
+                                    <h3>💼 销售财务中心</h3>
+                                    <p class="finance-subtitle">快速访问财务功能模块</p>
+                                </div>
+                                
+                                <div class="finance-quick-entry" @click="goToFinanceCenter">
+                                    <div class="quick-entry-icon">📊</div>
+                                    <div class="quick-entry-content">
+                                        <div class="quick-entry-title">进入财务中心</div>
+                                        <div class="quick-entry-desc">一站式管理客户、订单、应收应付、成本、税务、凭证等财务功能</div>
+                                    </div>
+                                    <div class="quick-entry-arrow">→</div>
+                                </div>
+                                
+                                <div class="finance-stats-row">
+                                    <div class="finance-stat-item">
+                                        <div class="stat-icon">👥</div>
+                                        <div class="stat-info">
+                                            <div class="stat-label">客户管理</div>
+                                            <div class="stat-value">管理客户信息</div>
+                                        </div>
+                                    </div>
+                                    <div class="finance-stat-item">
+                                        <div class="stat-icon">📝</div>
+                                        <div class="stat-info">
+                                            <div class="stat-label">销售订单</div>
+                                            <div class="stat-value">订单处理跟踪</div>
+                                        </div>
+                                    </div>
+                                    <div class="finance-stat-item">
+                                        <div class="stat-icon">💰</div>
+                                        <div class="stat-info">
+                                            <div class="stat-label">应收应付</div>
+                                            <div class="stat-value">账款管理</div>
+                                        </div>
+                                    </div>
+                                    <div class="finance-stat-item">
+                                        <div class="stat-icon">📈</div>
+                                        <div class="stat-info">
+                                            <div class="stat-label">财务报表</div>
+                                            <div class="stat-value">报表分析</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </el-tab-pane>
@@ -997,6 +1130,7 @@
                             
                         if (!userError && userData) {
                             currentUser.value.canTransfer = userData.can_transfer === true;
+                            currentUser.value.canViewFinance = userData.can_view_finance === true;
                             localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
                         }
                     } catch (error) {
@@ -1517,6 +1651,14 @@
                     window.location.href = 'login.html';
                 };
 
+                const goToFinancePage = (page) => {
+                    window.location.href = page;
+                };
+
+                const goToFinanceCenter = () => {
+                    window.location.href = 'finance.html';
+                };
+
                 onMounted(async () => {
                     await loadOutTypeOptions();
                     if (await checkAuth()) {
@@ -1578,7 +1720,9 @@
                     inventoryDetailDialogVisible,
                     inventoryDetail,
                     viewInventoryDetail,
-                    resetInventoryDetail
+                    resetInventoryDetail,
+                    goToFinancePage,
+                    goToFinanceCenter
                 };
             }
         });
