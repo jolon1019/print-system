@@ -5,287 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>热卷出入库管理系统</title>
     <link rel="stylesheet" href="element-plus.css">
+    <!-- 增强版筛选和统计系统样式 -->
     <link rel="stylesheet" href="enhanced-filter-stats.css">
     <script src="vue.global.js"></script>
     <script src="element-plus.js"></script>
     <script src="https://unpkg.com/@element-plus/icons-vue"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script defer src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-    <script defer src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script defer src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <!-- 增强版筛选和统计系统核心模块（内联版本） -->
-    <script>
-    /**
-     * 增强版出库记录筛选和统计系统
-     */
-    const EnhancedFilterStatsSystem = {
-        createFilterConditions() {
-            return {
-                timeRange: '',
-                customDateRange: [],
-                outType: '',
-                keyword: '',
-                minWeight: null,
-                maxWeight: null,
-                minAmount: null,
-                maxAmount: null
-            };
-        },
-
-        getActiveFilterCount(conditions) {
-            let count = 0;
-            if (conditions.timeRange) count++;
-            if (conditions.outType) count++;
-            if (conditions.keyword) count++;
-            return count;
-        },
-
-        getDateRange(timeRange, customDateRange) {
-            const now = new Date();
-            let startDate, endDate;
-
-            switch (timeRange) {
-                case 'today': {
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                    break;
-                }
-                case 'yesterday': {
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    break;
-                }
-                case 'thisWeek': {
-                    const dayOfWeek = now.getDay() || 7;
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
-                    endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-                    break;
-                }
-                case 'thisMonth': {
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                    break;
-                }
-                case 'lastMonth': {
-                    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                    endDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    break;
-                }
-                case 'custom': {
-                    if (customDateRange && customDateRange.length === 2) {
-                        startDate = new Date(customDateRange[0]);
-                        startDate.setHours(0, 0, 0, 0);
-                        endDate = new Date(customDateRange[1]);
-                        endDate.setHours(23, 59, 59, 999);
-                    }
-                    break;
-                }
-                default:
-                    return null;
-            }
-
-            return { startDate, endDate };
-        },
-
-        filterRecords(records, conditions) {
-            let filtered = [...records];
-
-            if (conditions.timeRange) {
-                const dateRange = this.getDateRange(conditions.timeRange, conditions.customDateRange);
-                if (dateRange) {
-                    filtered = filtered.filter(record => {
-                        const recordDate = new Date(record.created_at);
-                        return recordDate >= dateRange.startDate && recordDate <= dateRange.endDate;
-                    });
-                }
-            }
-
-            if (conditions.outType !== '') {
-                filtered = filtered.filter(record => {
-                    const recordOutType = record.out_type || record.outType || record.change_type;
-                    return String(recordOutType) === conditions.outType;
-                });
-            }
-
-            if (conditions.keyword) {
-                const keyword = conditions.keyword.toLowerCase().trim();
-                filtered = filtered.filter(record => {
-                    const searchFields = [
-                        record.vehicle_no,
-                        record.batch_no,
-                        record.ref_no,
-                        record.out_no
-                    ].filter(Boolean);
-
-                    return searchFields.some(field =>
-                        field.toString().toLowerCase().includes(keyword)
-                    );
-                });
-            }
-
-            if (conditions.minWeight !== null || conditions.maxWeight !== null) {
-                filtered = filtered.filter(record => {
-                    const weight = Math.abs(parseFloat(
-                        record.change_weight ||
-                        record.out_weight ||
-                        0
-                    ) || 0);
-
-                    if (conditions.minWeight !== null && weight < conditions.minWeight) return false;
-                    if (conditions.maxWeight !== null && weight > conditions.maxWeight) return false;
-                    return true;
-                });
-            }
-
-            if (conditions.minAmount !== null || conditions.maxAmount !== null) {
-                filtered = filtered.filter(record => {
-                    const amount = Math.abs(parseFloat(record.total_amount) || 0);
-
-                    if (conditions.minAmount !== null && amount < conditions.minAmount) return false;
-                    if (conditions.maxAmount !== null && amount > conditions.maxAmount) return false;
-                    return true;
-                });
-            }
-
-            return filtered;
-        },
-
-        calculateBasicStats(filteredRecords) {
-            let totalWeight = 0;
-            let totalAmount = 0;
-            const weights = [];
-            const amounts = [];
-
-            filteredRecords.forEach(item => {
-                const outWeightNum = Math.abs(parseFloat(
-                    item.change_weight ||
-                    item.out_weight ||
-                    0
-                ) || 0);
-
-                const totalAmountNum = Math.abs(parseFloat(item.total_amount) || 0);
-
-                totalWeight += outWeightNum;
-                totalAmount += totalAmountNum;
-                weights.push(outWeightNum);
-                amounts.push(totalAmountNum);
-            });
-
-            const recordCount = filteredRecords.length;
-
-            return {
-                recordCount,
-                totalWeight: parseFloat(totalWeight.toFixed(3)),
-                totalAmount: Math.ceil(totalAmount),
-                avgWeight: recordCount > 0 ? parseFloat((totalWeight / recordCount).toFixed(3)) : 0,
-                avgAmount: recordCount > 0 ? Math.ceil(totalAmount / recordCount) : 0,
-                maxWeight: weights.length > 0 ? parseFloat(Math.max(...weights).toFixed(3)) : 0,
-                minWeight: weights.length > 0 ? parseFloat(Math.min(...weights).toFixed(3)) : 0,
-                maxAmount: amounts.length > 0 ? Math.max(...amounts) : 0,
-                minAmount: amounts.length > 0 ? Math.min(...amounts) : 0
-            };
-        },
-
-        calculateGroupedByType(filteredRecords, outTypeOptions) {
-            const groups = {};
-
-            outTypeOptions.forEach(opt => {
-                groups[opt.type_code] = {
-                    typeName: opt.type_name,
-                    typeCode: opt.type_code,
-                    recordCount: 0,
-                    totalWeight: 0,
-                    totalAmount: 0
-                };
-            });
-
-            filteredRecords.forEach(item => {
-                const outType = item.out_type || item.outType || item.change_type;
-                if (groups[outType]) {
-                    groups[outType].recordCount++;
-                    groups[outType].totalWeight += Math.abs(parseFloat(
-                        item.change_weight ||
-                        item.out_weight ||
-                        0
-                    ) || 0);
-                    groups[outType].totalAmount += Math.abs(parseFloat(item.total_amount) || 0);
-                }
-            });
-
-            Object.values(groups).forEach(group => {
-                group.totalWeight = parseFloat(group.totalWeight.toFixed(3));
-                group.totalAmount = Math.ceil(group.totalAmount);
-            });
-
-            return Object.values(groups);
-        },
-
-        calculateGroupedByDate(filteredRecords, groupBy = 'day') {
-            const groups = {};
-
-            filteredRecords.forEach(item => {
-                const date = new Date(item.created_at);
-                let key;
-
-                switch (groupBy) {
-                    case 'day':
-                        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                        break;
-                    case 'week': {
-                        const weekStart = new Date(date);
-                        weekStart.setDate(date.getDate() - date.getDay());
-                        key = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
-                        break;
-                    }
-                    case 'month':
-                        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                        break;
-                    default:
-                        key = date.toISOString().split('T')[0];
-                }
-
-                if (!groups[key]) {
-                    groups[key] = {
-                        date: key,
-                        recordCount: 0,
-                        totalWeight: 0,
-                        totalAmount: 0
-                    };
-                }
-
-                groups[key].recordCount++;
-                groups[key].totalWeight += Math.abs(parseFloat(
-                    item.change_weight ||
-                    item.out_weight ||
-                    0
-                ) || 0);
-                groups[key].totalAmount += Math.abs(parseFloat(item.total_amount) || 0);
-            });
-
-            return Object.values(groups)
-                .map(group => ({
-                    ...group,
-                    totalWeight: parseFloat(group.totalWeight.toFixed(3)),
-                    totalAmount: Math.ceil(group.totalAmount)
-                }))
-                .sort((a, b) => a.date.localeCompare(b.date));
-        },
-
-        debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
-    };
-
-    window.EnhancedFilterStatsSystem = EnhancedFilterStatsSystem;
-    </script>
+    <!-- 添加Excel导出库 -->
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- 添加二维码生成库 -->
+    <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <!-- 添加html2canvas用于生成图片 -->
+    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <!-- 检测 Electron 环境 -->
     <script>
         // 检测是否在 Electron 环境中运行
@@ -1706,7 +1437,7 @@
             border-left-color: #67c23a;
         }
         .stat-number {
-            font-size: 1.7em;
+            font-size: 0.7em;
             font-weight: bold;
             color: #409EFF;
             margin-bottom: 2px;
@@ -2577,7 +2308,7 @@
             }
             
             .stat-number {
-                font-size: 2.5em;
+                font-size: 1.5em;
             }
             
             /* 库存卡片优化 */
@@ -3949,45 +3680,6 @@
             font-size: 14px;
             word-break: break-all;
         }
-
-        /* 出库类型下拉菜单样式 - 确保所有选项正确显示 */
-        .outbound-type-select-dropdown {
-            z-index: 99999 !important;
-            max-height: 400px !important;
-            min-width: 200px !important;
-        }
-
-        .outbound-type-select-dropdown .el-select-dropdown__list {
-            max-height: 350px !important;
-            overflow-y: auto !important;
-        }
-
-        .outbound-type-select-dropdown .el-select-dropdown__item {
-            padding: 10px 20px !important;
-            font-size: 14px !important;
-            line-height: 1.6 !important;
-            height: auto !important;
-            display: block !important;
-        }
-
-        .outbound-type-select-dropdown .el-select-dropdown__item:hover {
-            background-color: #f5f7fa !important;
-        }
-
-        .outbound-type-select-dropdown .el-select-dropdown__item.selected {
-            color: #409eff !important;
-            font-weight: 600 !important;
-            background-color: #ecf5ff !important;
-        }
-
-        /* 全局下拉菜单样式增强 */
-        .el-select-dropdown {
-            z-index: 99999 !important;
-        }
-
-        .el-popper {
-            z-index: 99999 !important;
-        }
     </style>
 </head>
 <body>
@@ -4424,7 +4116,7 @@
         <div class="app-container">
             <!-- 头部 -->
             <div class="header">
-                <h1>🏭 热卷管理v3</h1>
+                <h1>🏭 热卷管理v2</h1>
 
                 <!-- 状态指示器 -->
                 <div style="margin-top: 15px; display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap;">
@@ -4504,27 +4196,6 @@
                     @click="activeTab = 'history'"
                 >
                     📊 出库记录
-                </div>
-                <div class="tab-item" style="margin-left: auto;">
-                    <el-dropdown trigger="click">
-                        <span class="el-dropdown-link" style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                            💼 销售财务
-                            <el-icon class="el-icon--right"><arrow-down /></el-icon>
-                        </span>
-                        <template #dropdown>
-                            <el-dropdown-menu>
-                                <el-dropdown-item @click="goToPage('customers.html')">👥 客户管理</el-dropdown-item>
-                                <el-dropdown-item @click="goToPage('sales.html')">📝 销售订单</el-dropdown-item>
-                                <el-dropdown-item @click="goToPage('receivables.html')">💰 应收账款</el-dropdown-item>
-                                <el-dropdown-item @click="goToPage('payables.html')">💳 应付账款</el-dropdown-item>
-                                <el-dropdown-item divided @click="goToPage('costs.html')">📊 成本核算</el-dropdown-item>
-                                <el-dropdown-item @click="goToPage('tax.html')">📋 税务管理</el-dropdown-item>
-                                <el-dropdown-item divided @click="goToPage('vouchers.html')">📑 凭证管理</el-dropdown-item>
-                                <el-dropdown-item @click="goToPage('closing.html')">🔄 期末结账</el-dropdown-item>
-                                <el-dropdown-item @click="goToPage('reports.html')">📈 财务报表</el-dropdown-item>
-                            </el-dropdown-menu>
-                        </template>
-                    </el-dropdown>
                 </div>
             </div>
 
@@ -4620,7 +4291,7 @@
                         <div class="stat-label">在库卷数</div>
                         <div class="stat-trend trend-up" v-if="statistics.todayIn > 0">今日入库 +{{ statistics.todayIn }}卷</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card success">
                         <div class="stat-number">{{ statistics.totalWeight }} 吨</div>
                         <div class="stat-label">总库存重量</div>
                         <div class="stat-trend trend-up" v-if="statistics.todayInWeight > 0">今日 +{{ statistics.todayInWeight }}吨</div>
@@ -4630,7 +4301,7 @@
                         <div class="stat-label">供应商单位</div>
                         <div class="stat-trend">{{ statistics.materialCount }} 种材质</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card warning">
                         <div class="stat-number">{{ statistics.totalTransportFee }} 元</div>
                         <div class="stat-label">总运费</div>
                         <div class="stat-trend">{{ statistics.totalAdvancePayment }} 元垫付</div>
@@ -4664,9 +4335,9 @@
                             </div>
                             <div class="form-col">
                                 <el-select v-model="queryForm.status" clearable placeholder="库存状态" style="width: 100%" size="small">
-                                    <el-option label="全部" value="" /></el-option>
-                                    <el-option label="在库" :value="1" /></el-option>
-                                    <el-option label="已出库" :value="2" /></el-option>
+                                    <el-option label="全部" value="" />
+                                    <el-option label="在库" :value="1" />
+                                    <el-option label="已出库" :value="2" />
                                 </el-select>
                             </div>
                         </div>
@@ -4703,11 +4374,11 @@
                 <!-- 库存卡片展示 -->
                 <div v-if="filteredInventory.length > 0 && inventoryView === 'card'">
                     <div style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                        共找到 {{ filteredInventory.length }} 卷热卷，总重量 {{ totalFilteredWeight }} 吨
+                        共找到 {{ filteredInventory.length }} 卷热卷，总重量 {{ getTotalFilteredWeight() }} 吨
                     </div>
                     <div class="inventory-cards">
                         <div 
-                            v-for="item in paginatedInventory" 
+                            v-for="item in filteredInventory" 
                             :key="item.id"
                             class="coil-card"
                             :class="{ outbound: item.status === 2 }"
@@ -4881,12 +4552,12 @@
                 <!-- 库存表格展示 - 横向列表模式 -->
                 <div v-if="filteredInventory.length > 0 && inventoryView === 'table'" class="inventory-table">
                     <div style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                        共找到 {{ filteredInventory.length }} 卷热卷，总重量 {{ totalFilteredWeight }} 吨
+                        共找到 {{ filteredInventory.length }} 卷热卷，总重量 {{ getTotalFilteredWeight() }} 吨
                     </div>
                     <!-- 横向列表模式 -->
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <div 
-                            v-for="item in paginatedInventory" 
+                            v-for="item in filteredInventory" 
                             :key="item.id"
                             style="background: white; border: 1px solid #e4e7ed; border-radius: 8px; padding: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.3s;"
                             :style="{ borderLeft: item.status === 1 ? '4px solid #67c23a' : '4px solid #909399' }"
@@ -5094,19 +4765,6 @@
                     <div style="font-size: 16px; margin-bottom: 8px;">暂无库存数据</div>
                     <div style="color: #999; margin-bottom: 20px;">尝试调整搜索条件或添加新的入库记录</div>
                     <el-button type="primary" @click="activeTab = 'inbound'">立即入库</el-button>
-                </div>
-
-                <!-- 库存分页 -->
-                <div v-if="filteredInventory.length > 0" style="display: flex; justify-content: center; margin-top: 20px; padding: 10px 0;">
-                    <el-pagination
-                        v-model:current-page="inventoryCurrentPage"
-                        v-model:page-size="inventoryPageSize"
-                        :page-sizes="[20, 50, 100, 200]"
-                        :total="inventoryTotal"
-                        layout="total, sizes, prev, pager, next, jumper"
-                        @current-change="handleInventoryPageChange"
-                        @size-change="handleInventorySizeChange"
-                    />
                 </div>
             </div>
 
@@ -5515,173 +5173,68 @@
                     <el-button type="success" size="small" @click="exportOutboundToExcel" :disabled="groupedOutboundHistory.length === 0">📤 导出Excel</el-button>
                 </div>
 
-                <!-- 增强版筛选面板 -->
-                <div class="enhanced-filter-panel">
-                    <el-collapse v-model="filterPanelExpanded">
-                        <el-collapse-item name="filters">
-                            <template #title>
-                                <div class="filter-panel-header">
-                                    <span class="filter-title">🔍 高级筛选</span>
-                                    <el-tag v-if="activeFilterCount > 0" type="info" size="small" class="filter-count-badge">
-                                        {{ activeFilterCount }} 个条件已激活
-                                    </el-tag>
-                                </div>
-                            </template>
-
-                            <div class="filter-content">
-                                <!-- 时间范围筛选 -->
-                                <div class="filter-row">
-                                    <div class="filter-group" style="grid-column: 1 / -1;">
-                                        <label class="filter-label">⏰ 时间范围</label>
-                                        <div class="time-filter-buttons">
-                                            <el-button class="time-filter-btn" :class="{ active: filterConditions.timeRange === 'today' }" @click="setTimeFilter('today')">今日</el-button>
-                                            <el-button class="time-filter-btn" :class="{ active: filterConditions.timeRange === 'yesterday' }" @click="setTimeFilter('yesterday')">昨日</el-button>
-                                            <el-button class="time-filter-btn" :class="{ active: filterConditions.timeRange === 'thisWeek' }" @click="setTimeFilter('thisWeek')">本周</el-button>
-                                            <el-button class="time-filter-btn" :class="{ active: filterConditions.timeRange === 'thisMonth' }" @click="setTimeFilter('thisMonth')">本月</el-button>
-                                            <el-button class="time-filter-btn" :class="{ active: filterConditions.timeRange === 'lastMonth' }" @click="setTimeFilter('lastMonth')">上月</el-button>
-                                            <el-button class="time-filter-btn" :class="{ active: filterConditions.timeRange === 'custom' }" @click="setTimeFilter('custom')">自定义</el-button>
-                                        </div>
-
-                                        <div class="custom-date-range" v-if="filterConditions.timeRange === 'custom'">
-                                            <el-date-picker
-                                                v-model="filterConditions.customDateRange"
-                                                type="daterange"
-                                                range-separator="至"
-                                                start-placeholder="开始日期"
-                                                end-placeholder="结束日期"
-                                                size="small"
-                                                style="width: 100%;"
-                                                @change="onFilterChange"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- 出库类型 + 关键词搜索 -->
-                                <div class="filter-row">
-                                    <div class="filter-group">
-                                        <label class="filter-label">📦 出库类型</label>
-                                        <el-select 
-                                            v-model="filterConditions.outType" 
-                                            placeholder="全部类型" 
-                                            clearable 
-                                            style="width: 100%;" 
-                                            size="small" 
-                                            @change="onFilterChange"
-                                            popper-class="outbound-type-select-dropdown"
-                                        >
-                                            <el-option label="全部类型" value="" />
-                                            <el-option 
-                                                v-for="opt in outTypeOptions" 
-                                                :key="opt.type_code" 
-                                                :label="opt.type_name" 
-                                                :value="String(opt.type_code)" 
-                                            />
-                                        </el-select>
-                                    </div>
-
-                                    <div class="filter-group">
-                                        <label class="filter-label">🔎 关键词搜索</label>
-                                        <el-input v-model="filterConditions.keyword" placeholder="输入车号/批号/出库单号..." clearable size="small">
-                                            <template #prefix><el-icon><Search /></el-icon></template>
-                                        </el-input>
-                                    </div>
-                                </div>
-
-                                <!-- 操作按钮 -->
-                                <div class="filter-actions">
-                                    <el-button type="primary" size="small" @click="applyFilters">🔍 应用筛选</el-button>
-                                    <el-button size="small" @click="clearAllFilters">🗑️ 清除全部条件</el-button>
-                                    <el-tag v-if="activeFilterCount > 0 && filteredOutboundRecords.length > 0" type="success" size="small" effect="dark">找到 {{ filteredOutboundRecords.length }} 条记录</el-tag>
-                                </div>
-                            </div>
-                        </el-collapse-item>
-                    </el-collapse>
+                <!-- 时间段筛选按钮 -->
+                <div class="time-filter-buttons">
+                    <el-button class="time-filter-btn" @click="filterByTime('today')" :class="{ active: selectedTimeFilter === 'today' }">今日</el-button>
+                    <el-button class="time-filter-btn" @click="filterByTime('yesterday')" :class="{ active: selectedTimeFilter === 'yesterday' }">昨日</el-button>
+                    <el-button class="time-filter-btn" @click="filterByTime('thisMonth')" :class="{ active: selectedTimeFilter === 'thisMonth' }">本月</el-button>
+                    <el-button class="time-filter-btn" @click="filterByTime('lastMonth')" :class="{ active: selectedTimeFilter === 'lastMonth' }">上月</el-button>
+                    <el-button class="time-filter-btn" @click="filterByTime('custom')" :class="{ active: selectedTimeFilter === 'custom' }">自定义</el-button>
+                    <el-button class="time-filter-btn clear" @click="clearTimeFilter" v-if="selectedTimeFilter">清除筛选</el-button>
                 </div>
 
-                <!-- 增强版统计卡片区域（仅在有筛选条件时显示） -->
-                <div class="enhanced-stats-container" v-if="activeFilterCount > 0">
-                    <div class="stat-card primary">
-                        <div class="stat-card-icon">📊</div>
-                        <div class="stat-card-label">筛选结果记录数</div>
-                        <div class="stat-card-value">{{ enhancedStats.recordCount.toLocaleString() }}<span class="stat-card-unit">条</span></div>
-                    </div>
-
-                    <div class="stat-card success">
-                        <div class="stat-card-icon">⚖️</div>
-                        <div class="stat-card-label">总出库重量</div>
-                        <div class="stat-card-value">{{ enhancedStats.totalWeight.toLocaleString() }}<span class="stat-card-unit">吨</span></div>
-                    </div>
-
-                    <div class="stat-card warning">
-                        <div class="stat-card-icon">💰</div>
-                        <div class="stat-card-label">总出库金额</div>
-                        <div class="stat-card-value">¥{{ enhancedStats.totalAmount.toLocaleString() }}<span class="stat-card-unit">元</span></div>
-                    </div>
-
-                    <div class="stat-card info">
-                        <div class="stat-card-icon">📈</div>
-                        <div class="stat-card-label">平均每笔重量</div>
-                        <div class="stat-card-value">{{ enhancedStats.avgWeight.toLocaleString() }}<span class="stat-card-unit">吨</span></div>
-                    </div>
-
-                    <div class="stat-card danger">
-                        <div class="stat-card-icon">💵</div>
-                        <div class="stat-card-label">平均每笔金额</div>
-                        <div class="stat-card-value">¥{{ enhancedStats.avgAmount.toLocaleString() }}<span class="stat-card-unit">元</span></div>
-                    </div>
-
-                    <div class="stat-card primary">
-                        <div class="stat-card-icon">🏆</div>
-                        <div class="stat-card-label">最大单笔重量</div>
-                        <div class="stat-card-value">{{ enhancedStats.maxWeight.toLocaleString() }}<span class="stat-card-unit">吨</span></div>
-                    </div>
+                <div class="custom-date-range" v-if="selectedTimeFilter === 'custom'" style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+                    <el-date-picker
+                        v-model="customDateRange"
+                        type="daterange"
+                        range-separator="至"
+                        start-placeholder="开始日期"
+                        end-placeholder="结束日期"
+                        size="small"
+                        style="width: 320px;"
+                        @change="onCustomDateRangeChange"
+                    />
                 </div>
 
-                <!-- 分组统计表格（按出库类型，仅在有筛选条件时显示） -->
-                <div class="grouped-stats-section" v-if="activeFilterCount > 0 && statsGroupedByType.length > 0">
-                    <h3 style="margin: 20px 0 12px; font-size: 16px; color: #303133;">📋 按出库类型分组统计</h3>
-                    <table class="grouped-stats-table">
-                        <thead>
-                            <tr>
-                                <th>出库类型</th>
-                                <th>记录数</th>
-                                <th>总重量（吨）</th>
-                                <th>总金额（元）</th>
-                                <th>平均重量（吨）</th>
-                                <th>占比</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="group in statsGroupedByType" :key="group.typeCode">
-                                <td><el-tag :type="getOutTypeTagType(group.typeCode)" size="small">{{ group.typeName }}</el-tag></td>
-                                <td><strong>{{ group.recordCount }}</strong></td>
-                                <td>{{ group.totalWeight.toLocaleString() }}</td>
-                                <td>¥{{ group.totalAmount.toLocaleString() }}</td>
-                                <td>{{ (group.recordCount > 0 ? (group.totalWeight / group.recordCount) : 0).toFixed(3) }}</td>
-                                <td>
-                                    <el-progress :percentage="enhancedStats.recordCount > 0 ? (group.recordCount / enhancedStats.recordCount * 100) : 0" :stroke-width="10" :show-text="false" style="width: 120px;" />
-                                    <span style="margin-left: 8px; font-size: 12px; color: #606266;">{{ enhancedStats.recordCount > 0 ? (group.recordCount / enhancedStats.recordCount * 100).toFixed(1) : 0 }}%</span>
-                                </td>
-                            </tr>
-                        </tbody>
-                        <tfoot v-if="statsGroupedByType.length > 1">
-                            <tr style="background: #f5f7fa; font-weight: bold;">
-                                <td>合计</td>
-                                <td>{{ enhancedStats.recordCount }}</td>
-                                <td>{{ enhancedStats.totalWeight.toLocaleString() }}</td>
-                                <td>¥{{ enhancedStats.totalAmount.toLocaleString() }}</td>
-                                <td>{{ enhancedStats.avgWeight.toFixed(3) }}</td>
-                                <td>100%</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                <!-- 出库类型筛选 -->
+                <div class="type-filter" style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 14px; color: #606266;">出库类型:</span>
+                    <el-select v-model="selectedOutTypeFilter" placeholder="全部" clearable style="width: 140px;" size="small">
+                        <el-option label="全部" :value="''" />
+                        <el-option 
+                            v-for="opt in outTypeOptions" 
+                            :key="opt.type_code" 
+                            :label="opt.type_name" 
+                            :value="opt.type_code" 
+                        />
+                    </el-select>
+                </div>
+
+                <!-- 筛选时间段统计信息 -->
+                <div class="stat-container" v-if="selectedTimeFilter">
+        
+                        <span class="stat-label">出库记录数</span>
+                        <span class="stat-value">
+                            {{ filteredOutboundStats.recordCount }}
+                            <span class="stat-value unit">条</span>
+                        </span>
+                         <span class="stat-label">总出库重量</span>
+                        <span class="stat-value highlight">
+                            {{ filteredOutboundStats.totalWeight }}
+                            <span class="stat-value unit">吨</span>
+                        </span>
+                          <span class="stat-label">总出库价格</span>
+                        <span class="stat-value highlight">
+                            {{ filteredOutboundStats.totalAmount }}
+                            <span class="stat-value unit">元</span>
+              
+
                 </div>
 
                 <!-- 横向列表模式 -->
                 <div style="display: flex; flex-direction: column; gap: 12px;" v-if="groupedOutboundHistory.length > 0">
                     <div 
-                        v-for="item in paginatedOutboundHistory" 
+                        v-for="item in groupedOutboundHistory" 
                         :key="item.ref_no || item.id"
                         :data-batch-no="item.batch_no"
                         style="background: white; border: 1px solid #e4e7ed; border-radius: 8px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.3s; border-left: 4px solid #f56c6c;"
@@ -5875,19 +5428,6 @@
 
                         </div>
                     </div>
-                </div>
-                
-                <!-- 出库记录分页 -->
-                <div v-if="groupedOutboundHistory.length > 0" style="display: flex; justify-content: center; margin-top: 20px; padding: 10px 0;">
-                    <el-pagination
-                        v-model:current-page="outboundCurrentPage"
-                        v-model:page-size="outboundPageSize"
-                        :page-sizes="[20, 30, 50, 100]"
-                        :total="outboundTotal"
-                        layout="total, sizes, prev, pager, next, jumper"
-                        @current-change="handleOutboundPageChange"
-                        @size-change="handleOutboundSizeChange"
-                    />
                 </div>
                 
                 <!-- 空状态 -->
@@ -6473,10 +6013,6 @@
                     window.location.href = 'admin.html';
                 };
                 
-                const goToPage = (page) => {
-                    window.location.href = page;
-                };
-                
                 // 键盘事件监听器 - 防止回车键意外提交
                 const handleKeydown = (event) => {
                     // 处理 ESC 键关闭全屏图片
@@ -6584,14 +6120,6 @@
                 // 库存状态筛选
                 const inventoryStatus = ref('inStock');
                 
-                // 库存分页
-                const inventoryCurrentPage = ref(1);
-                const inventoryPageSize = ref(50);
-
-                // 出库记录分页
-                const outboundCurrentPage = ref(1);
-                const outboundPageSize = ref(30);
-                
                 // 加载状态
                 const loading = ref(false);
                 
@@ -6609,11 +6137,10 @@
                 const lastSyncTime = ref(null);
                 const syncStatus = ref('online'); // online, offline, syncing, error
                 
-                // 增强版筛选系统 - 筛选面板展开状态（默认展开）
-                const filterPanelExpanded = ref(['filters']);
-
-                // 增强版筛选条件对象（支持多条件组合查询：时间、类型、关键词、重量范围、金额范围）
-                const filterConditions = reactive(EnhancedFilterStatsSystem.createFilterConditions());
+                // 时间段筛选相关
+                const selectedTimeFilter = ref('today'); // null, today, yesterday, thisMonth, lastMonth, custom
+                const selectedOutTypeFilter = ref(''); // '', 1, 2, 3
+                const customDateRange = ref([]); // 自定义日期范围
 
                 // 从库存数据中提取的单位列表
                 const availableUnits = ref([]);
@@ -6739,10 +6266,9 @@
                 const groupedOutboundHistory = computed(() => {
                     const groups = {};
                     const filteredRecords = filterRecordsByTime(outboundHistoryData.value);
-                    const inventoryMap = {};
-                    inventoryData.value.forEach(inv => {
-                        inventoryMap[inv.batch_no] = inv;
-                    });
+                    
+                    // 调试日志：检查输入数据
+                    console.log('[groupedOutboundHistory] 输入记录数量:', filteredRecords.length);
                     
                     filteredRecords.forEach(item => {
                         const key = item.ref_no || item.out_no || item.id;
@@ -6755,9 +6281,17 @@
                             };
                         }
                         
-                        const inventoryItem = inventoryMap[item.batch_no];
+                        // 调试日志：检查多批号情况
+                        if (groups[key].batchItems.length === 0) {
+                            console.log(`[groupedOutboundHistory] 处理出库单 ${key}, 批号: ${item.batch_no}`);
+                        } else {
+                            console.log(`[groupedOutboundHistory] 出库单 ${key} 已存在批号，新增批号: ${item.batch_no}`);
+                        }
+                        // 根据批号补齐缺失字段（规格/材质/单价/总价），避免显示N/A
+                        const inventoryItem = inventoryData.value.find(inv => inv.batch_no === item.batch_no);
                         const batchInfoArray = outboundBatchMap.value[key]?.[item.batch_no];
                         
+                        // 从批次信息数组中获取最新的记录（按创建时间排序）
                         let batchInfo = null;
                         if (batchInfoArray && batchInfoArray.length > 0) {
                             batchInfo = batchInfoArray.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
@@ -6770,6 +6304,7 @@
                             0
                         ) || 0);
 
+                        // 单价兜底：历史记录 -> 库存 -> 由总价/重量反推
                         const unitPriceNum = (() => {
                             const fromBatch = parseFloat(batchInfo?.unit_price);
                             if (!isNaN(fromBatch) && fromBatch > 0) return fromBatch;
@@ -6794,6 +6329,18 @@
                             const invCalc = (parseFloat(inventoryItem?.unit_price) || 0) * (outWeightNum || (parseFloat(inventoryItem?.weight) || 0));
                             return Math.abs(invCalc) || 0;
                         })();
+
+                        // 调试日志：观察单价/总价填充值来源
+                        console.debug('[GroupedOutbound] ref_no:', key, {
+                            batch_no: item.batch_no,
+                            change_weight: item.change_weight,
+                            out_weight: item.out_weight,
+                            unit_price_raw: item.unit_price,
+                            total_amount_raw: item.total_amount,
+                            inventory_unit_price: inventoryItem?.unit_price,
+                            unitPriceNum,
+                            filledTotalAmount
+                        });
                         const filledItem = {
                             ...item,
                             specification: item.specification || inventoryItem?.specification || '',
@@ -6835,37 +6382,6 @@
                         totalAmount: Math.ceil(totalAmount).toLocaleString(),
                         recordCount: filteredRecords.length
                     };
-                });
-
-                // ====== 增强版筛选和统计系统 - 新增计算属性 ======
-
-                const activeFilterCount = computed(() => {
-                    return EnhancedFilterStatsSystem.getActiveFilterCount(filterConditions);
-                });
-
-                const filteredOutboundRecords = computed(() => {
-                    return EnhancedFilterStatsSystem.filterRecords(
-                        outboundHistoryData.value,
-                        filterConditions
-                    );
-                });
-
-                const enhancedStats = computed(() => {
-                    return EnhancedFilterStatsSystem.calculateBasicStats(filteredOutboundRecords.value);
-                });
-
-                const statsGroupedByType = computed(() => {
-                    return EnhancedFilterStatsSystem.calculateGroupedByType(
-                        filteredOutboundRecords.value,
-                        outTypeOptions.value
-                    );
-                });
-
-                const statsGroupedByDate = computed(() => {
-                    return EnhancedFilterStatsSystem.calculateGroupedByDate(
-                        filteredOutboundRecords.value,
-                        'day'
-                    );
                 });
                 
                 // 导入Excel相关
@@ -7238,26 +6754,26 @@
                     return texts[syncStatus.value] || '未知状态';
                 });
 
+                // 过滤后的库存数据
                 const filteredInventory = computed(() => {
                     let filtered = inventoryData.value;
                     
+                    // 根据库存状态筛选
                     if (inventoryStatus.value === 'inStock') {
                         filtered = filtered.filter(item => item.status === 1);
                     } else if (inventoryStatus.value === 'outStock') {
                         filtered = filtered.filter(item => item.status === 2);
                     }
                     
-                    const batchNoLower = queryForm.batchNo ? queryForm.batchNo.toLowerCase() : '';
-                    if (batchNoLower) {
+                    if (queryForm.batchNo) {
                         filtered = filtered.filter(item => 
-                            item.batch_no.toLowerCase().includes(batchNoLower)
+                            item.batch_no.toLowerCase().includes(queryForm.batchNo.toLowerCase())
                         );
                     }
                     
-                    const specLower = queryForm.specification ? queryForm.specification.toLowerCase() : '';
-                    if (specLower) {
+                    if (queryForm.specification) {
                         filtered = filtered.filter(item => 
-                            item.specification.toLowerCase().includes(specLower)
+                            item.specification.toLowerCase().includes(queryForm.specification.toLowerCase())
                         );
                     }
                     
@@ -7269,17 +6785,15 @@
                         filtered = filtered.filter(item => item.material === queryForm.material);
                     }
                     
-                    const storageLower = queryForm.storageLocation ? queryForm.storageLocation.toLowerCase() : '';
-                    if (storageLower) {
+                    if (queryForm.storageLocation) {
                         filtered = filtered.filter(item => 
-                            item.storage_location && item.storage_location.toLowerCase().includes(storageLower)
+                            item.storage_location && item.storage_location.toLowerCase().includes(queryForm.storageLocation.toLowerCase())
                         );
                     }
                     
-                    const vehicleLower = queryForm.vehicleNo ? queryForm.vehicleNo.toLowerCase() : '';
-                    if (vehicleLower) {
+                    if (queryForm.vehicleNo) {
                         filtered = filtered.filter(item => 
-                            item.vehicle_no && item.vehicle_no.toLowerCase().includes(vehicleLower)
+                            item.vehicle_no && item.vehicle_no.toLowerCase().includes(queryForm.vehicleNo.toLowerCase())
                         );
                     }
                     
@@ -7288,12 +6802,15 @@
                     }
                     
                     if (queryForm.dateRange && queryForm.dateRange.length === 2) {
-                        const startDate = new Date(queryForm.dateRange[0]);
-                        const endDate = new Date(queryForm.dateRange[1]);
-                        endDate.setHours(23, 59, 59, 999);
-                        
                         filtered = filtered.filter(item => {
                             const itemDate = new Date(item.in_date);
+                            const startDate = new Date(queryForm.dateRange[0]);
+                            const endDate = new Date(queryForm.dateRange[1]);
+                            
+                            // 修复日期边界问题：确保包含完整日期范围
+                            // 将结束日期设置为当天的23:59:59，确保包含当天的所有记录
+                            endDate.setHours(23, 59, 59, 999);
+                            
                             return itemDate >= startDate && itemDate <= endDate;
                         });
                     }
@@ -7301,62 +6818,20 @@
                     return filtered;
                 });
 
-                const paginatedInventory = computed(() => {
-                    const start = (inventoryCurrentPage.value - 1) * inventoryPageSize.value;
-                    const end = start + inventoryPageSize.value;
-                    return filteredInventory.value.slice(start, end);
-                });
-
-                const inventoryTotal = computed(() => filteredInventory.value.length);
-
-                const paginatedOutboundHistory = computed(() => {
-                    const start = (outboundCurrentPage.value - 1) * outboundPageSize.value;
-                    const end = start + outboundPageSize.value;
-                    return groupedOutboundHistory.value.slice(start, end);
-                });
-
-                const outboundTotal = computed(() => groupedOutboundHistory.value.length);
-
-                const handleInventoryPageChange = (page) => {
-                    inventoryCurrentPage.value = page;
-                };
-
-                const handleInventorySizeChange = (size) => {
-                    inventoryPageSize.value = size;
-                    inventoryCurrentPage.value = 1;
-                };
-
-                const handleOutboundPageChange = (page) => {
-                    outboundCurrentPage.value = page;
-                };
-
-                const handleOutboundSizeChange = (size) => {
-                    outboundPageSize.value = size;
-                    outboundCurrentPage.value = 1;
-                };
-
-                const outboundInfoMap = computed(() => {
-                    const map = {};
-                    outboundHistoryData.value.forEach(item => {
-                        if (item.change_type !== 2) return;
-                        if (!map[item.batch_no]) {
-                            map[item.batch_no] = [];
-                        }
-                        map[item.batch_no].push(item);
-                    });
-                    Object.keys(map).forEach(key => {
-                        map[key].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                    });
-                    return map;
-                });
-
+                // 获取出库信息（单条记录，用于兼容旧代码）
                 const getOutboundInfo = (batchNo) => {
-                    const records = outboundInfoMap.value[batchNo];
-                    return records && records.length > 0 ? records[0] : null;
+                    const records = outboundHistoryData.value.filter(item => 
+                        item.batch_no === batchNo && item.change_type === 2
+                    );
+                    // 返回最新的出库记录
+                    return records.length > 0 ? records[0] : null;
                 };
 
+                // 新增：获取一个批号的所有出库记录
                 const getAllOutboundInfo = (batchNo) => {
-                    return outboundInfoMap.value[batchNo] || [];
+                    return outboundHistoryData.value
+                        .filter(item => item.batch_no === batchNo && item.change_type === 2)
+                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                 };
 
                 // 新增：查看开平明细功能
@@ -7410,13 +6885,13 @@
                     
                     // 保存当前的日期范围和时间筛选
                     const originalDateRange = queryForm.dateRange ? [...queryForm.dateRange] : null;
-                    const originalTimeFilter = filterConditions.timeRange;
+                    const originalTimeFilter = selectedTimeFilter.value;
                     console.log('原始日期范围:', originalDateRange);
                     console.log('原始时间筛选:', originalTimeFilter);
-
+                    
                     // 清空日期范围和时间筛选，显示所有记录
                     queryForm.dateRange = [];
-                    filterConditions.timeRange = '';
+                    selectedTimeFilter.value = null;
                     console.log('已清空日期范围和时间筛选');
                     
                     // 使用 nextTick 确保 DOM 更新完成
@@ -7579,6 +7054,7 @@
                     }
                 };
 
+                // 检查出库记录数据完整性
                 const validateOutboundDataIntegrity = (outboundData) => {
                     const refNoGroups = {};
                     const issues = [];
@@ -7591,7 +7067,14 @@
                         refNoGroups[refNo].push(item);
                     });
                     
+                    // 检查每个出库单的完整性
                     Object.entries(refNoGroups).forEach(([refNo, items]) => {
+                        if (items.length > 1) {
+                            console.log(`[DataIntegrity] 出库单 ${refNo} 包含 ${items.length} 个批号:`, 
+                                items.map(i => ({ batch_no: i.batch_no, out_weight: i.out_weight })));
+                        }
+                        
+                        // 检查缺失的关键字段
                         items.forEach((item, index) => {
                             if (!item.batch_no) {
                                 issues.push(`${refNo}[${index}]: 缺少批号`);
@@ -7604,6 +7087,8 @@
                     
                     if (issues.length > 0) {
                         console.warn('[DataIntegrity] 发现数据完整性问题:', issues);
+                    } else {
+                        console.log('[DataIntegrity] 数据完整性检查通过');
                     }
                     
                     return issues;
@@ -7671,8 +7156,31 @@
 
                         const outboundList = data || [];
                         
+                        // 数据完整性检查
                         validateOutboundDataIntegrity(outboundList);
+                        
+                        // 调试日志：检查多批号数据
+                        console.log('[loadOutboundFromSupabase] 原始出库记录数量:', outboundList.length);
+                        const refNoGroups = {};
+                        outboundList.forEach(item => {
+                            const refNo = item.ref_no || `OUT${item.outbound_order_id}`;
+                            if (!refNoGroups[refNo]) {
+                                refNoGroups[refNo] = [];
+                            }
+                            refNoGroups[refNo].push(item);
+                        });
+                        
+                        // 检查有多个批号的出库单
+                        Object.entries(refNoGroups).forEach(([refNo, items]) => {
+                            if (items.length > 1) {
+                                console.log(`[loadOutboundFromSupabase] 多批号出库单 ${refNo}:`, {
+                                    batchCount: items.length,
+                                    batches: items.map(i => ({ batch_no: i.batch_no, out_weight: i.out_weight }))
+                                });
+                            }
+                        });
 
+                        // 转换数据格式以兼容现有前端逻辑
                         const transformedOutbound = outboundList.map(item => {
                             return {
                                 id: item.outbound_order_id,
@@ -7735,14 +7243,17 @@
                     }
                 };
                 
+                // 从Supabase加载历史记录（使用outbound表作为历史记录源）
                 const loadHistoryFromSupabase = async (forceRefresh = false) => {
                     try {
                         const cacheKey = CACHE_CONFIG.KEYS.HISTORY;
                         
+                        // 如果不是强制刷新，先检查缓存
                         if (!forceRefresh) {
                             const cachedData = loadFromCache(cacheKey);
                             
                             if (cachedData && cachedData.length > 0) {
+                                console.log('[缓存] 使用缓存的历史记录:', cachedData.length, '条记录');
                                 historyData.value = cachedData;
                                 cacheStatus.value = 'ready';
                                 updateCacheStats();
@@ -7751,40 +7262,8 @@
                             }
                         }
                         
-                        if (outboundHistoryData.value.length > 0 && !forceRefresh) {
-                            const historyDataTransformed = outboundHistoryData.value.map(item => {
-                                return {
-                                    id: item.id,
-                                    batch_no: item.batch_no,
-                                    unit: item.unit || '',
-                                    specification: item.specification,
-                                    material: item.material || '',
-                                    change_type: 2,
-                                    change_weight: -Math.abs(item.out_weight || item.change_weight || 0),
-                                    before_weight: 0,
-                                    after_weight: 0,
-                                    transport_fee: item.transport_fee || 0,
-                                    advance_payment: item.advance_payment || 0,
-                                    unit_price: item.unit_price || 0,
-                                    total_amount: item.total_amount || 0,
-                                    ref_no: item.ref_no,
-                                    remark: item.remark || '出库操作',
-                                    created_at: item.created_at,
-                                    vehicle_no: item.vehicle_no || ''
-                                };
-                            });
-                            
-                            historyData.value = historyDataTransformed;
-                            
-                            if (historyDataTransformed.length > 0) {
-                                CacheManager.set(cacheKey, historyDataTransformed, { type: 'history' });
-                                cacheStatus.value = 'ready';
-                                updateCacheStats();
-                            }
-                            
-                            return historyDataTransformed;
-                        }
-                        
+                        // 强制从数据库加载
+                        console.log('[数据库] 从数据库加载历史记录...');
                         const { data, error } = await supabaseClient
                             .from('outbound')
                             .select(`
@@ -7803,15 +7282,16 @@
                         
                         if (error) throw error;
                         
+                        // 转换数据格式以兼容历史记录显示
                         const historyDataTransformed = (data || []).map(item => {
                             return {
                                 id: item.outbound_order_id,
                                 batch_no: item.batch_no,
-                                unit: item.inventory?.unit || '',
+                                unit: item.inventory?.unit || '', // 只使用inventory表中的unit字段
                                 specification: item.inventory?.specification || item.specification,
                                 material: item.inventory?.material || '',
-                                change_type: 2,
-                                change_weight: -Math.abs(item.out_weight || 0),
+                                change_type: 2, // 出库类型
+                                change_weight: -Math.abs(item.out_weight || 0), // 出库重量为负值
                                 before_weight: item.inventory?.weight || 0,
                                 after_weight: (item.inventory?.weight || 0) - (item.out_weight || 0),
                                 transport_fee: item.transport_fee || 0,
@@ -7827,8 +7307,10 @@
                         
                         historyData.value = historyDataTransformed;
                         
+                        // 更新缓存
                         if (historyDataTransformed.length > 0) {
                             CacheManager.set(cacheKey, historyDataTransformed, { type: 'history' });
+                            console.log('[缓存] 历史记录已缓存:', historyDataTransformed.length, '条记录');
                             cacheStatus.value = 'ready';
                             updateCacheStats();
                         }
@@ -7841,44 +7323,32 @@
                     }
                 };
                 
-                // ====== 增强版筛选和统计系统 - 新增方法 ======
-
-                const setTimeFilter = (timeRange) => {
-                    filterConditions.timeRange = timeRange;
-                    onFilterChange();
+                // 时间段筛选方法
+                const filterByTime = (filterType) => {
+                    selectedTimeFilter.value = filterType;
                 };
 
-                const onFilterChange = () => {
-                };
-
-                const debouncedFilterChange = EnhancedFilterStatsSystem.debounce(() => {
-                }, 300);
-
-                const applyFilters = () => {
-                    const count = activeFilterCount.value;
-                    if (count > 0) {
-                        ElMessage.success(`✅ 已应用 ${count} 个筛选条件，找到 ${filteredOutboundRecords.value.length} 条匹配记录`);
-                    } else {
-                        ElMessage.info('ℹ️ 当前没有激活的筛选条件，显示全部数据');
-                    }
-                };
-
-                const clearAllFilters = () => {
-                    Object.assign(filterConditions, EnhancedFilterStatsSystem.createFilterConditions());
-                    ElMessage.info('🗑️ 已清除所有筛选条件，显示全部数据');
-                    console.log('🔄 已清除所有筛选条件');
+                // 自定义日期范围变化处理
+                const onCustomDateRangeChange = (value) => {
+                    customDateRange.value = value;
                 };
                 
-                // 根据时间段和出库类型筛选出库记录（兼容旧代码，使用新的filterConditions）
+                // 清除时间段筛选
+                const clearTimeFilter = () => {
+                    selectedTimeFilter.value = null;
+                    customDateRange.value = [];
+                };
+                
+                // 根据时间段和出库类型筛选出库记录
                 const filterRecordsByTime = (records) => {
                     let filtered = records;
-
+                    
                     // 时间段筛选
-                    if (filterConditions.timeRange) {
+                    if (selectedTimeFilter.value) {
                         const now = new Date();
                         let startDate, endDate;
-
-                        switch (filterConditions.timeRange) {
+                        
+                        switch (selectedTimeFilter.value) {
                             case 'today':
                                 startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                                 endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -7886,11 +7356,6 @@
                             case 'yesterday':
                                 startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
                                 endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                                break;
-                            case 'thisWeek':
-                                const dayOfWeek = now.getDay() || 7;
-                                startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
-                                endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
                                 break;
                             case 'thisMonth':
                                 startDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -7901,17 +7366,17 @@
                                 endDate = new Date(now.getFullYear(), now.getMonth(), 1);
                                 break;
                             case 'custom':
-                                if (filterConditions.customDateRange && filterConditions.customDateRange.length === 2) {
-                                    startDate = new Date(filterConditions.customDateRange[0]);
+                                if (customDateRange.value && customDateRange.value.length === 2) {
+                                    startDate = new Date(customDateRange.value[0]);
                                     startDate.setHours(0, 0, 0, 0);
-                                    endDate = new Date(filterConditions.customDateRange[1]);
+                                    endDate = new Date(customDateRange.value[1]);
                                     endDate.setHours(23, 59, 59, 999);
                                 }
                                 break;
                             default:
                                 break;
                         }
-
+                        
                         if (startDate && endDate) {
                             filtered = filtered.filter(record => {
                                 const recordDate = new Date(record.created_at);
@@ -7919,15 +7384,15 @@
                             });
                         }
                     }
-
+                    
                     // 出库类型筛选
-                    if (filterConditions.outType !== '') {
+                    if (selectedOutTypeFilter.value !== '') {
                         filtered = filtered.filter(record => {
                             const recordOutType = record.out_type || record.outType || record.change_type;
-                            return String(recordOutType) === filterConditions.outType;
+                            return Number(recordOutType) === Number(selectedOutTypeFilter.value);
                         });
                     }
-
+                    
                     return filtered;
                 };
 
@@ -8287,14 +7752,14 @@
                     }
                 };
 
-                const totalFilteredWeight = computed(() => {
+                // 获取筛选后的总重量
+                const getTotalFilteredWeight = () => {
+                    // 确保重量严格保留3位小数，使用四舍五入提高精度
                     let totalWeight = Math.round(filteredInventory.value.reduce((sum, item) => sum + (item.weight || 0), 0) * 1000) / 1000;
+                    
+                    // 双重保障：同时使用parseFloat和toFixed确保精度
                     totalWeight = parseFloat(totalWeight.toFixed(3));
                     return totalWeight;
-                });
-
-                const getTotalFilteredWeight = () => {
-                    return totalFilteredWeight.value;
                 };
 
                 // 格式化日期（修复时区问题）
@@ -12630,16 +12095,8 @@
                 // 监听库存状态变化，更新可用单位列表
                 watch(inventoryStatus, () => {
                     updateAvailableOptions();
+                    // 重置单位筛选
                     queryForm.unit = '';
-                    inventoryCurrentPage.value = 1;
-                });
-
-                watch([() => queryForm.batchNo, () => queryForm.specification, () => queryForm.unit, () => queryForm.material, () => queryForm.storageLocation, () => queryForm.vehicleNo, () => queryForm.status, () => queryForm.dateRange], () => {
-                    inventoryCurrentPage.value = 1;
-                });
-
-                watch([() => filterConditions.timeRange, () => filterConditions.outType, () => filterConditions.keyword], () => {
-                    outboundCurrentPage.value = 1;
                 });
 
                 return {
@@ -12679,19 +12136,12 @@
                     totalAmount,
                     filteredInventory,
                     isSyncing,
-                    // 增强版筛选和统计系统
-                    filterPanelExpanded,
-                    filterConditions,
-                    activeFilterCount,
-                    filteredOutboundRecords,
-                    enhancedStats,
-                    statsGroupedByType,
-                    statsGroupedByDate,
-                    setTimeFilter,
-                    onFilterChange,
-                    debouncedFilterChange,
-                    applyFilters,
-                    clearAllFilters,
+                    selectedTimeFilter,
+                    selectedOutTypeFilter,
+                    customDateRange,
+                    filterByTime,
+                    onCustomDateRangeChange,
+                    clearTimeFilter,
                     lastSyncTime,
                     syncStatus,
                     syncStatusClass,
@@ -12860,26 +12310,8 @@
                     // 出库提交状态
                     isSubmittingOutbound,
                     
-                    // 分页
-                    inventoryCurrentPage,
-                    inventoryPageSize,
-                    inventoryTotal,
-                    paginatedInventory,
-                    handleInventoryPageChange,
-                    handleInventorySizeChange,
-                    outboundCurrentPage,
-                    outboundPageSize,
-                    outboundTotal,
-                    paginatedOutboundHistory,
-                    handleOutboundPageChange,
-                    handleOutboundSizeChange,
-                    totalFilteredWeight,
-                    
                     // 进入管理员页面
-                    goToAdminPage,
-                    
-                    // 页面跳转
-                    goToPage
+                    goToAdminPage
                 };
             }
         };
@@ -12896,5 +12328,9 @@
         
         app.mount('#app');
     </script>
+    <!-- 增强版筛选和统计系统核心模块 -->
+    <script src="enhanced-filter-stats.js"></script>
+    <!-- 增强版筛选和统计系统单元测试（可选，生产环境可删除） -->
+    <script src="enhanced-filter-stats.test.js"></script>
 </body>
 </html>
