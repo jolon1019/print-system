@@ -2577,7 +2577,7 @@
             }
             
             .stat-number {
-                font-size: 2.5em;
+                font-size: 1.3em;
             }
             
             /* 库存卡片优化 */
@@ -8297,13 +8297,16 @@
                     return totalFilteredWeight.value;
                 };
 
-                // 格式化日期（修复时区问题）
                 const formatDate = (dateString) => {
                     if (!dateString) return '';
-                    const date = new Date(dateString);
-                    // 修复时区问题：确保显示正确的时间
+                    let date;
+                    if (typeof dateString === 'string' && dateString.includes('T') && !dateString.endsWith('Z') && !dateString.includes('+')) {
+                        date = new Date(dateString + 'Z');
+                    } else {
+                        date = new Date(dateString);
+                    }
                     const options = {
-                        timeZone: 'Asia/Shanghai', // 明确指定时区为北京时间
+                        timeZone: 'Asia/Shanghai',
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit'
@@ -8311,7 +8314,6 @@
                     return date.toLocaleDateString('zh-CN', options);
                 };
 
-                // 格式化日期时间（修复时区问题）
                 const formatDateTime = (dateTimeString) => {
                     if (!dateTimeString) return '';
                     let date;
@@ -8320,6 +8322,7 @@
                     } else {
                         date = new Date(dateTimeString);
                     }
+                    if (isNaN(date.getTime())) return '';
                     return date.toLocaleString('zh-CN', {
                         timeZone: 'Asia/Shanghai',
                         year: 'numeric',
@@ -10171,10 +10174,8 @@
                         // 设置提交状态
                         isSubmittingOutbound.value = true;
                         
-                        // 捕获精确的出库时间戳（按钮点击时刻）- 修复时区问题
                         const now = new Date();
-                        // 使用本地时间字符串，避免UTC时区问题
-                        const outboundTimestamp = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
+                        const outboundTimestamp = now.toISOString();
                         
                         await outboundFormRef.value.validate();
 

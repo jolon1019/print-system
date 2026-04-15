@@ -1296,7 +1296,12 @@
 
                 const formatDate = (dateStr) => {
                     if (!dateStr) return '-';
-                    const date = new Date(dateStr);
+                    let date;
+                    if (typeof dateStr === 'string' && dateStr.includes('T') && !dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                        date = new Date(dateStr + 'Z');
+                    } else {
+                        date = new Date(dateStr);
+                    }
                     return date.toLocaleDateString('zh-CN', {
                         timeZone: 'Asia/Shanghai',
                         year: 'numeric',
