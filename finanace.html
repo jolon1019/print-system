@@ -2437,7 +2437,7 @@
                     },
                     
                     // 每日记账
-                    selectedDate: new Date().toISOString().split('T')[0],
+                    selectedDate: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0'),
                     currentDaily: null,
                     dailyTransactions: [],
                     
@@ -2529,7 +2529,7 @@
                     showDetailDialogVisible: false,
                     selectedLedgerItem: null,
                     newLedgerForm: {
-                        transaction_date: new Date().toISOString().split('T')[0],
+                        transaction_date: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0'),
                         ref_no: '',
                         transaction_type: '收入',
                         description: '',
@@ -3021,8 +3021,8 @@
                                 .from('finance_ledger')
                                 .select('total_amount')
                                 .eq('transaction_type', '收入')
-                                .gte('transaction_date', periodStart.toISOString().split('T')[0])
-                                .lte('transaction_date', periodEnd.toISOString().split('T')[0]),
+                                .gte('transaction_date', this._getLocalDateString(periodStart))
+                                .lte('transaction_date', this._getLocalDateString(periodEnd)),
                             { data: [], error: null },
                             3,
                             10000
@@ -3042,8 +3042,8 @@
                                 .from('finance_ledger')
                                 .select('total_amount')
                                 .eq('transaction_type', '收入')
-                                .gte('transaction_date', lastPeriodStart.toISOString().split('T')[0])
-                                .lte('transaction_date', lastPeriodEnd.toISOString().split('T')[0]),
+                                .gte('transaction_date', this._getLocalDateString(lastPeriodStart))
+                                .lte('transaction_date', this._getLocalDateString(lastPeriodEnd)),
                             { data: [], error: null },
                             3,
                             10000
@@ -3335,7 +3335,7 @@
                         if (confirm(`确认结算以下运费？\n待结算车辆：${pendingFreights.length}辆\n总运费：¥${this.formatNumber(totalAmount)}\n总垫付金额：¥${this.formatNumber(totalAdvance)}`)) {
                             
                             // 生成结算记录到财务账本
-                            const settlementDate = new Date().toISOString().split('T')[0];
+                            const settlementDate = this._getLocalDateString();
                             const settlementRefNo = `SETTLE${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}${String(Date.now()).slice(-4)}`;
                             
                             // 创建运费支出记录
@@ -3695,7 +3695,7 @@
                         }
                         
                         // 今日数据
-                        const todayStr = now.toISOString().split('T')[0];
+                        const todayStr = this._getLocalDateString(now);
                         const todayData = transactions.filter(t => t.transaction_date === todayStr);
                         this.dashboardData.todayCount = todayData.length;
                         
@@ -4260,15 +4260,16 @@
                         const dateStr = this.selectedDate;
                         
                         // 转换日期格式用于精确筛选
-                        const targetDate = new Date(dateStr);
+                        const targetDate = new Date(dateStr + 'T00:00:00');
                         const nextDate = new Date(targetDate);
                         nextDate.setDate(nextDate.getDate() + 1);
+                        const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
                         
                         const { data, error } = await supabaseClient
                             .from('finance_ledger')
                             .select('*')
                             .gte('transaction_date', dateStr)
-                            .lt('transaction_date', nextDate.toISOString().split('T')[0])
+                            .lt('transaction_date', nextDateStr)
                             .order('transaction_time', { ascending: false });
                         
                         if (error) throw error;
@@ -4558,7 +4559,12 @@
                                 // 创建财务记录 - 修复时间取值问题
                                 // 确保 transaction_date 和 transaction_time 使用一致的日期时间源
                                 const sourceDateTime = record.created_at || record.out_date || new Date().toISOString();
-                                const sourceDateObj = new Date(sourceDateTime);
+                                let sourceDateObj;
+                                if (typeof sourceDateTime === 'string' && sourceDateTime.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) && !sourceDateTime.endsWith('Z') && !sourceDateTime.includes('+')) {
+                                    sourceDateObj = new Date(sourceDateTime + 'Z');
+                                } else {
+                                    sourceDateObj = new Date(sourceDateTime);
+                                }
                                 
                                 // 构建批号列表描述
                                 const batchList = record.batchItems.map(b => 
@@ -4573,6 +4579,7 @@
                                 const ledgerRecord = {
                                     ref_no: record.ref_no,
                                     transaction_date: sourceDateObj.toLocaleDateString('zh-CN', {
+                                        timeZone: 'Asia/Shanghai',
                                         year: 'numeric',
                                         month: '2-digit',
                                         day: '2-digit'
@@ -5142,7 +5149,7 @@
                 showAddLedgerDialog() {
                     // 生成凭证号
                     const now = new Date();
-                    const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+                    const dateStr = this._getLocalDateString().replace(/-/g, '');
                     this.newLedgerForm.ref_no = `V${dateStr}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
                     
                     this.showAddLedgerDialogVisible = true;
@@ -5187,7 +5194,7 @@
                         
                         // 重置表单
                         this.newLedgerForm = {
-                            transaction_date: new Date().toISOString().split('T')[0],
+                            transaction_date: this._getLocalDateString(),
                             ref_no: '',
                             transaction_type: '收入',
                             description: '',
@@ -5511,7 +5518,7 @@
                 
                 // 快捷日期导航
                 goToToday() {
-                    const today = new Date().toISOString().split('T')[0];
+                    const today = this._getLocalDateString();
                     this.selectedDate = today;
                     this.loadDailyAccounting();
                 },
@@ -5519,7 +5526,7 @@
                 goToYesterday() {
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
-                    this.selectedDate = yesterday.toISOString().split('T')[0];
+                    this.selectedDate = this._getLocalDateString(yesterday);
                     this.loadDailyAccounting();
                 },
                 
@@ -5545,27 +5552,17 @@
                                 const outboundTime = outboundRecord.created_at || outboundRecord.out_date;
                                 
                                 if (outboundTime) {
-                                    // 直接使用从主系统获取的原始时间数据，避免格式化不一致
-                                    const date = new Date(outboundTime);
+                                    const date = this._parseDBTimestamp(outboundTime);
                                     if (!isNaN(date.getTime())) {
-                                        const year = date.getFullYear();
-                                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                                        const day = String(date.getDate()).padStart(2, '0');
-                                        const hours = String(date.getHours()).padStart(2, '0');
-                                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                                        const seconds = String(date.getSeconds()).padStart(2, '0');
-                                        const formattedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                                        const formattedTime = this._formatDateToLocal(date);
                                         
-                                        // 显示详细时间信息
                                         this.showAlert(`出库单号: ${row.ref_no}\n出库时间: ${formattedTime}`, 'success');
                                         
-                                        // 更新缓存，以便formatDateTime函数可以使用
                                         if (!this.outboundTimeCache) {
                                             this.outboundTimeCache = {};
                                         }
                                         this.outboundTimeCache[row.ref_no] = outboundTime;
                                         
-                                        // 如果当前显示的是"时间格式错误"，则尝试更新财务记录的时间
                                         if (this.formatDateTime(row.transaction_time || row.transaction_date, row) === '时间格式错误') {
                                             await this.fixTransactionTime(row.id, outboundTime);
                                         }
@@ -5630,10 +5627,10 @@
                         
                         for (const record of records || []) {
                             if (record.transaction_time && record.transaction_time !== 'T' && !record.transaction_time.includes('NaN')) {
-                                // 从 transaction_time 提取正确的日期
-                                const timeDate = new Date(record.transaction_time);
+                                const timeDate = this._parseDBTimestamp(record.transaction_time);
                                 if (!isNaN(timeDate.getTime())) {
                                     const correctDate = timeDate.toLocaleDateString('zh-CN', {
+                                        timeZone: 'Asia/Shanghai',
                                         year: 'numeric',
                                         month: '2-digit',
                                         day: '2-digit'
@@ -5966,15 +5963,9 @@
                         // 检查缓存中是否已有该单号的时间数据
                         if (this.outboundTimeCache && this.outboundTimeCache[refNo]) {
                             const cachedTime = this.outboundTimeCache[refNo];
-                            const date = new Date(cachedTime);
+                            const date = this._parseDBTimestamp(cachedTime);
                             if (!isNaN(date.getTime())) {
-                                const year = date.getFullYear();
-                                const month = String(date.getMonth() + 1).padStart(2, '0');
-                                const day = String(date.getDate()).padStart(2, '0');
-                                const hours = String(date.getHours()).padStart(2, '0');
-                                const minutes = String(date.getMinutes()).padStart(2, '0');
-                                const seconds = String(date.getSeconds()).padStart(2, '0');
-                                return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                                return this._formatDateToLocal(date);
                             }
                         }
                         
@@ -5997,16 +5988,15 @@
                                 const minutes = timeStr.substring(2, 4);
                                 const seconds = timeStr.substring(4, 6);
                                 
-                                const extractedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                                const extractedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+08:00`;
                                 console.log('从单号提取时间:', extractedTime);
                                 
-                                // 缓存这个结果
                                 if (!this.outboundTimeCache) {
                                     this.outboundTimeCache = {};
                                 }
                                 this.outboundTimeCache[refNo] = extractedTime;
                                 
-                                return extractedTime;
+                                return this._formatDateToLocal(new Date(extractedTime));
                             }
                             
                             // 如果无法从单号提取，返回当前时间作为估算
@@ -6019,15 +6009,9 @@
                             const seconds = String(now.getSeconds()).padStart(2, '0');
                             
                             const estimatedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-                            console.log('使用估算时间:', estimatedTime);
+                            console.warn('使用估算时间（不缓存）:', estimatedTime);
                             
-                            // 缓存这个结果
-                            if (!this.outboundTimeCache) {
-                                this.outboundTimeCache = {};
-                            }
-                            this.outboundTimeCache[refNo] = estimatedTime;
-                            
-                            return estimatedTime;
+                            return '__estimated__' + estimatedTime;
                         }
                         
                         // 直接从出库记录查询时间数据
@@ -6070,21 +6054,12 @@
                         }
                         this.outboundTimeCache[refNo] = outboundTime;
                         
-                        // 直接使用原始时间数据，避免额外的格式化
-                        const date = new Date(outboundTime);
+                        const date = this._parseDBTimestamp(outboundTime);
                         if (isNaN(date.getTime())) {
                             return '时间格式错误';
                         }
                         
-                        // 使用与formatDateTime相同的格式，确保一致性
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const hours = String(date.getHours()).padStart(2, '0');
-                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                        const seconds = String(date.getSeconds()).padStart(2, '0');
-                        
-                        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                        return this._formatDateToLocal(date);
                         
                     } catch (error) {
                         console.error('获取出库时间失败:', error);
@@ -6109,8 +6084,10 @@
                 
                 formatDate(dateString) {
                     if (!dateString) return '';
-                    const date = new Date(dateString);
+                    const date = this._parseDBTimestamp(dateString);
+                    if (isNaN(date.getTime())) return '';
                     return date.toLocaleDateString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit'
@@ -6119,8 +6096,10 @@
                 
                 formatTime(dateTimeString) {
                     if (!dateTimeString) return '';
-                    const date = new Date(dateTimeString);
+                    const date = this._parseDBTimestamp(dateTimeString);
+                    if (isNaN(date.getTime())) return '';
                     return date.toLocaleTimeString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
                         hour: '2-digit',
                         minute: '2-digit',
                         second: '2-digit'
@@ -6129,40 +6108,24 @@
                 
                 formatDateTime(dateTimeString, row = null) {
                     try {
-                        // 如果提供了行数据且包含出库单号，优先从主系统获取时间
+                        const isDateTimeValid = dateTimeString && dateTimeString !== 'T' && !dateTimeString.includes('NaN');
+                        
                         if (row && row.ref_no && row.ref_no.startsWith('OUT')) {
-                            // 检查缓存中是否已有该单号的时间数据
-                            if (this.outboundTimeCache && this.outboundTimeCache[row.ref_no]) {
-                                const cachedTime = this.outboundTimeCache[row.ref_no];
-                                let date = new Date(cachedTime);
-                                if (!isNaN(date.getTime())) {
-                                    // 检查是否超过当天时间范围（23:59:59）
-                                    const hours = date.getHours();
-                                    const minutes = date.getMinutes();
-                                    const seconds = date.getSeconds();
-                                    
-                                    if (hours >= 23 && minutes >= 59 && seconds >= 59) {
-                                        // 归类到下一天
-                                        date.setDate(date.getDate() + 1);
+                            if (!isDateTimeValid) {
+                                if (this.outboundTimeCache && this.outboundTimeCache[row.ref_no]) {
+                                    const cachedTime = this.outboundTimeCache[row.ref_no];
+                                    if (cachedTime && !cachedTime.startsWith('__estimated__')) {
+                                        const date = this._parseDBTimestamp(cachedTime);
+                                        if (!isNaN(date.getTime())) {
+                                            return this._formatDateToLocal(date);
+                                        }
                                     }
-                                    
-                                    const year = date.getFullYear();
-                                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                                    const day = String(date.getDate()).padStart(2, '0');
-                                    const hoursFormatted = String(date.getHours()).padStart(2, '0');
-                                    const minutesFormatted = String(date.getMinutes()).padStart(2, '0');
-                                    const secondsFormatted = String(date.getSeconds()).padStart(2, '0');
-                                    return `${year}-${month}-${day} ${hoursFormatted}:${minutesFormatted}:${secondsFormatted}`;
                                 }
-                            }
-                            
-                            // 如果没有缓存，返回当前时间格式或尝试从单号提取
-                            if (!dateTimeString || dateTimeString === 'T' || dateTimeString.includes('NaN')) {
-                                // 尝试从单号提取时间
+                                
                                 const refNoMatch = row.ref_no.match(/OUT(\d{8})(\d{6})/);
                                 if (refNoMatch) {
-                                    const dateStr = refNoMatch[1]; // YYYYMMDD
-                                    const timeStr = refNoMatch[2]; // HHMMSS
+                                    const dateStr = refNoMatch[1];
+                                    const timeStr = refNoMatch[2];
                                     const year = dateStr.substring(0, 4);
                                     const month = dateStr.substring(4, 6);
                                     const day = dateStr.substring(6, 8);
@@ -6175,33 +6138,63 @@
                             }
                         }
                         
-                        if (!dateTimeString || dateTimeString === 'T' || dateTimeString.includes('NaN')) {
+                        if (!isDateTimeValid) {
                             return '时间数据异常';
                         }
                         
-                        // 智能检测和修复常见时间格式问题
                         let processedString = this.fixCommonTimeFormatIssues(dateTimeString);
+                        const date = this._parseDBTimestamp(processedString);
                         
-                        const date = new Date(processedString);
-                        
-                        // 检查日期是否有效
                         if (isNaN(date.getTime())) {
                             return '时间格式错误';
                         }
                         
-                        // 使用系统标准时间格式：YYYY-MM-DD HH:mm:ss
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const hours = String(date.getHours()).padStart(2, '0');
-                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                        const seconds = String(date.getSeconds()).padStart(2, '0');
-                        
-                        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                        return this._formatDateToLocal(date);
                     } catch (error) {
                         console.error('时间格式化错误:', error);
                         return '时间格式化失败';
                     }
+                },
+                
+                _parseDBTimestamp(timeString) {
+                    if (!timeString) return new Date(NaN);
+                    let str = String(timeString);
+                    if (str.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) && !str.endsWith('Z') && !str.includes('+')) {
+                        str = str + 'Z';
+                    }
+                    return new Date(str);
+                },
+                
+                _formatDateToLocal(date) {
+                    if (isNaN(date.getTime())) return '时间格式错误';
+                    const formatted = date.toLocaleString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                    const parts = formatted.replace(/\//g, '-').replace(/,/g, '').split(/\s+/);
+                    if (parts.length >= 2) {
+                        const datePart = parts[0];
+                        const timePart = parts[1];
+                        const dateComponents = datePart.split('-');
+                        if (dateComponents.length === 3) {
+                            const year = dateComponents[0];
+                            const month = dateComponents[1].padStart(2, '0');
+                            const day = dateComponents[2].padStart(2, '0');
+                            return `${year}-${month}-${day} ${timePart}`;
+                        }
+                    }
+                    return formatted.replace(/\//g, '-').replace(/,/g, '');
+                },
+                
+                _getLocalDateString(date = null) {
+                    const d = date || new Date();
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                 },
                 
                 // 修复常见时间格式问题
@@ -6212,8 +6205,9 @@
                     
                     // 1. 处理只有时间部分的情况（如 "08:00:00"）
                     if (processedString.match(/^\d{1,2}:\d{1,2}(:\d{1,2})?$/)) {
-                        const today = new Date().toISOString().split('T')[0];
-                        processedString = `${today}T${processedString}`;
+                        const now = new Date();
+                        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                        processedString = `${today}T${processedString}+08:00`;
                     }
                     
                     // 2. 处理缺少时间部分的情况
@@ -6223,7 +6217,7 @@
                     
                     // 3. 处理只有日期没有时间的情况
                     if (!processedString.includes('T') && processedString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        processedString += 'T00:00:00';
+                        processedString += 'T00:00:00+08:00';
                     }
                     
                     // 4. 处理不完整的时间格式

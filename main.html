@@ -23,7 +23,7 @@
             return {
                 timeRange: '',
                 customDateRange: [],
-                outType: '',
+                outType: null,
                 keyword: '',
                 minWeight: null,
                 maxWeight: null,
@@ -100,10 +100,10 @@
                 }
             }
 
-            if (conditions.outType !== '') {
+            if (conditions.outType !== null && conditions.outType !== '') {
                 filtered = filtered.filter(record => {
                     const recordOutType = record.out_type || record.outType || record.change_type;
-                    return String(recordOutType) === conditions.outType;
+                    return Number(recordOutType) === Number(conditions.outType);
                 });
             }
 
@@ -5570,12 +5570,12 @@
                                             @change="onFilterChange"
                                             popper-class="outbound-type-select-dropdown"
                                         >
-                                            <el-option label="全部类型" value="" />
+                                            <el-option label="全部类型" :value="null" />
                                             <el-option 
                                                 v-for="opt in outTypeOptions" 
                                                 :key="opt.type_code" 
                                                 :label="opt.type_name" 
-                                                :value="String(opt.type_code)" 
+                                                :value="opt.type_code" 
                                             />
                                         </el-select>
                                     </div>
@@ -5712,8 +5712,8 @@
                                             :key="opt.type_code"
                                             style="padding: 8px 16px; cursor: pointer; font-size: 13px; white-space: nowrap;"
                                             :style="{ 
-                                                backgroundColor: item.out_type === opt.type_code ? '#ecf5ff' : 'transparent',
-                                                fontWeight: item.out_type === opt.type_code ? 'bold' : 'normal'
+                                                backgroundColor: Number(item.out_type) === opt.type_code ? '#ecf5ff' : 'transparent',
+                                                fontWeight: Number(item.out_type) === opt.type_code ? 'bold' : 'normal'
                                             }"
                                             @click.stop="updateOutType(item, opt.type_code)"
                                         >
@@ -6140,7 +6140,7 @@
                             .order('sort_order', { ascending: true });
                         if (!error && data && data.length > 0) {
                             outTypeOptions.value = data.map(item => ({
-                                type_code: item.type_code,
+                                type_code: Number(item.type_code),
                                 type_name: item.type_name,
                                 tag_type: item.tag_type
                             }));
@@ -6151,12 +6151,12 @@
                 };
 
                 const getOutTypeName = (outType) => {
-                    const found = outTypeOptions.value.find(opt => opt.type_code === outType);
+                    const found = outTypeOptions.value.find(opt => opt.type_code === Number(outType));
                     return found ? found.type_name : '未知类型';
                 };
 
                 const getOutTypeTagType = (outType) => {
-                    const found = outTypeOptions.value.find(opt => opt.type_code === outType);
+                    const found = outTypeOptions.value.find(opt => opt.type_code === Number(outType));
                     return found ? found.tag_type : 'info';
                 };
 
@@ -7921,10 +7921,10 @@
                     }
 
                     // 出库类型筛选
-                    if (filterConditions.outType !== '') {
+                    if (filterConditions.outType !== null && filterConditions.outType !== '') {
                         filtered = filtered.filter(record => {
                             const recordOutType = record.out_type || record.outType || record.change_type;
-                            return String(recordOutType) === filterConditions.outType;
+                            return Number(recordOutType) === Number(filterConditions.outType);
                         });
                     }
 
@@ -8445,7 +8445,7 @@
                                     '单位': item.unit || '',
                                     '出库时间': formatDateTime(item.created_at) || '',
                                     '装货车辆': item.vehicle_no || '',
-                                    '出库类型': getOutTypeText(item.out_type),
+                                    '出库类型': getOutTypeName(item.out_type),
                                     '批号': '',
                                     '规格': '',
                                     '材质': '',
@@ -9525,7 +9525,7 @@
                                 <div style="margin-bottom: 12px;">
                                     <label style="display: block; margin-bottom: 4px; color: #606266; font-size: 13px;">出库类型：</label>
                                     <select id="edit_out_type" style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px;">
-                                        ${outTypeOptions.value.map(opt => `<option value="${opt.type_code}" ${formData.out_type === opt.type_code ? 'selected' : ''}>${opt.type_name}</option>`).join('')}
+                                        ${outTypeOptions.value.map(opt => `<option value="${opt.type_code}" ${Number(formData.out_type) === Number(opt.type_code) ? 'selected' : ''}>${opt.type_name}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div style="margin-bottom: 12px;">
@@ -11633,7 +11633,7 @@
                             outNo: data.out_no || data.ref_no || '',
                             outDate: formatDate(data.out_date || data.created_at),
                             unit: data.unit,
-                            outType: Array.isArray(data.out_type) ? data.out_type.join(', ') : data.out_type || '常规出库',
+                            outType: getOutTypeName(data.out_type),
                             vehicleNo: data.vehicle_no || '',
                             batchItems: batchItems,
                             summary: {
