@@ -5684,6 +5684,7 @@
                         v-for="item in paginatedOutboundHistory" 
                         :key="item.ref_no || item.id"
                         :data-batch-no="item.batch_no"
+                        :data-ref-no="item.ref_no"
                         style="background: white; border: 1px solid #e4e7ed; border-radius: 8px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.3s; border-left: 4px solid #f56c6c;"
                         @mouseover="(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'"
                         @mouseleave="(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'"
@@ -7419,70 +7420,99 @@
                     filterConditions.timeRange = '';
                     console.log('已清空日期范围和时间筛选');
                     
-                    // 使用 nextTick 确保 DOM 更新完成
+                    // 在 groupedOutboundHistory 中查找目标记录，计算应该在第几页
                     nextTick(() => {
-                        console.log('DOM 已更新，开始查找元素');
-                        
-                        // 等待一小段时间确保渲染完成
+                        // 等待数据重新计算
                         setTimeout(() => {
-                            // 尝试多种查找方式
-                            let element = null;
+                            // 查找目标记录在 groupedOutboundHistory 中的索引
+                            const targetIndex = groupedOutboundHistory.value.findIndex(item => {
+                                // 匹配 batch_no
+                                if (item.batch_no === batchNo) return true;
+                                // 匹配 batchItems 中的 batch_no
+                                if (item.batchItems && item.batchItems.some(bi => bi.batch_no === batchNo)) return true;
+                                return false;
+                            });
                             
-                            // 方式1: 通过 batch_no 查找
-                            const selectorByBatchNo = `[data-batch-no="${batchNo}"]`;
-                            console.log('查找选择器 (batch_no):', selectorByBatchNo);
-                            element = document.querySelector(selectorByBatchNo);
-                            console.log('通过 batch_no 找到的元素:', element);
+                            console.log('目标记录在 groupedOutboundHistory 中的索引:', targetIndex);
                             
-                            // 方式2: 如果没找到，尝试通过 ref_no 查找
-                            if (!element) {
-                                // 从 outboundHistoryData 中查找对应的 ref_no
-                                const outboundRecord = outboundHistoryData.value.find(
-                                    item => item.batch_no === batchNo && item.change_type === 2
-                                );
-                                console.log('找到的出库记录:', outboundRecord);
-                                
-                                if (outboundRecord && outboundRecord.ref_no) {
-                                    const selectorByRefNo = `[data-batch-no="${outboundRecord.ref_no}"]`;
-                                    console.log('查找选择器 (ref_no):', selectorByRefNo);
-                                    element = document.querySelector(selectorByRefNo);
-                                    console.log('通过 ref_no 找到的元素:', element);
-                                }
+                            if (targetIndex === -1) {
+                                // 在数据中完全找不到该批号
+                                console.error('在数据中未找到批号:', batchNo);
+                                console.log('所有批号:', groupedOutboundHistory.value.map(item => item.batch_no));
+                                ElMessage.warning(`未找到批号 ${batchNo} 的出库记录，该批号可能不存在出库数据`);
+                                return;
                             }
                             
-                            // 方式3: 如果还是没找到，尝试查找所有包含该批号的元素
-                            if (!element) {
-                                const allElements = document.querySelectorAll('[data-batch-no]');
-                                console.log('所有批号元素数量:', allElements.length);
-                                allElements.forEach(el => {
-                                    const batchNoAttr = el.getAttribute('data-batch-no');
-                                    if (batchNoAttr === batchNo || batchNoAttr === String(batchNo)) {
-                                        element = el;
-                                        console.log('通过遍历找到的元素:', el);
-                                    }
-                                });
+                            // 计算目标记录应该在第几页
+                            const targetPage = Math.floor(targetIndex / outboundPageSize.value) + 1;
+                            console.log('目标记录应该在第', targetPage, '页，当前在第', outboundCurrentPage.value, '页');
+                            
+                            // 如果目标页不是当前页，切换到目标页
+                            if (targetPage !== outboundCurrentPage.value) {
+                                outboundCurrentPage.value = targetPage;
+                                console.log('已切换到第', targetPage, '页');
                             }
                             
-                            if (element) {
-                                console.log('滚动到元素位置');
-                                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                // 添加高亮效果
-                                element.style.border = '2px solid #409eff';
-                                element.style.boxShadow = '0 0 10px rgba(64, 158, 255, 0.5)';
+                            // 再次使用 nextTick 确保分页切换后 DOM 更新
+                            nextTick(() => {
                                 setTimeout(() => {
-                                    element.style.border = '';
-                                    element.style.boxShadow = '';
-                                }, 3000);
-                            } else {
-                                console.error('未找到元素，当前页面上的所有 data-batch-no 属性:');
-                                const allElements = document.querySelectorAll('[data-batch-no]');
-                                console.log('所有批号元素:', allElements);
-                                allElements.forEach(el => {
-                                    console.log('  -', el.getAttribute('data-batch-no'));
-                                });
-                                ElMessage.warning(`未找到批号 ${batchNo} 的出库记录，已显示所有历史记录`);
-                            }
-                        }, 500);
+                                    let element = null;
+                                    
+                                    // 方式1: 通过 batch_no 直接查找
+                                    const selectorByBatchNo = `[data-batch-no="${batchNo}"]`;
+                                    console.log('查找选择器 (batch_no):', selectorByBatchNo);
+                                    element = document.querySelector(selectorByBatchNo);
+                                    console.log('通过 batch_no 找到的元素:', element);
+                                    
+                                    // 方式2: 如果没找到，通过 ref_no 查找
+                                    if (!element) {
+                                        const outboundRecord = outboundHistoryData.value.find(
+                                            item => item.batch_no === batchNo && item.change_type === 2
+                                        );
+                                        console.log('找到的出库记录:', outboundRecord);
+                                        
+                                        if (outboundRecord && outboundRecord.ref_no) {
+                                            const selectorByRefNo = `[data-ref-no="${outboundRecord.ref_no}"]`;
+                                            console.log('查找选择器 (ref_no):', selectorByRefNo);
+                                            element = document.querySelector(selectorByRefNo);
+                                            console.log('通过 ref_no 找到的元素:', element);
+                                        }
+                                    }
+                                    
+                                    // 方式3: 遍历所有元素查找
+                                    if (!element) {
+                                        const allElements = document.querySelectorAll('[data-batch-no]');
+                                        console.log('所有批号元素数量:', allElements.length);
+                                        allElements.forEach(el => {
+                                            const batchNoAttr = el.getAttribute('data-batch-no');
+                                            if (batchNoAttr === batchNo || batchNoAttr === String(batchNo)) {
+                                                element = el;
+                                                console.log('通过遍历找到的元素:', el);
+                                            }
+                                        });
+                                    }
+                                    
+                                    if (element) {
+                                        console.log('滚动到元素位置');
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        element.style.border = '2px solid #409eff';
+                                        element.style.boxShadow = '0 0 10px rgba(64, 158, 255, 0.5)';
+                                        setTimeout(() => {
+                                            element.style.border = '';
+                                            element.style.boxShadow = '';
+                                        }, 3000);
+                                    } else {
+                                        console.error('未找到元素，当前页面上的所有 data-batch-no 属性:');
+                                        const allElements = document.querySelectorAll('[data-batch-no]');
+                                        console.log('所有批号元素:', allElements);
+                                        allElements.forEach(el => {
+                                            console.log('  -', el.getAttribute('data-batch-no'));
+                                        });
+                                        ElMessage.warning(`未找到批号 ${batchNo} 的出库记录，已显示所有历史记录`);
+                                    }
+                                }, 300);
+                            });
+                        }, 100);
                     });
                 };
                 
@@ -7760,6 +7790,7 @@
                                     specification: item.specification,
                                     material: item.material || '',
                                     change_type: 2,
+                                    out_type: item.out_type || 1,
                                     change_weight: -Math.abs(item.out_weight || item.change_weight || 0),
                                     before_weight: 0,
                                     after_weight: 0,
@@ -7811,6 +7842,7 @@
                                 specification: item.inventory?.specification || item.specification,
                                 material: item.inventory?.material || '',
                                 change_type: 2,
+                                out_type: item.out_type || 1,
                                 change_weight: -Math.abs(item.out_weight || 0),
                                 before_weight: item.inventory?.weight || 0,
                                 after_weight: (item.inventory?.weight || 0) - (item.out_weight || 0),
@@ -7858,6 +7890,28 @@
                     const count = activeFilterCount.value;
                     if (count > 0) {
                         ElMessage.success(`✅ 已应用 ${count} 个筛选条件，找到 ${filteredOutboundRecords.value.length} 条匹配记录`);
+                        
+                        // 重置到第一页
+                        outboundCurrentPage.value = 1;
+                        
+                        // 滚动到第一条匹配的记录
+                        nextTick(() => {
+                            setTimeout(() => {
+                                const firstRecord = groupedOutboundHistory.value[0];
+                                if (firstRecord && firstRecord.batch_no) {
+                                    const element = document.querySelector(`[data-batch-no="${firstRecord.batch_no}"]`);
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        element.style.border = '2px solid #67c23a';
+                                        element.style.boxShadow = '0 0 10px rgba(103, 194, 58, 0.5)';
+                                        setTimeout(() => {
+                                            element.style.border = '';
+                                            element.style.boxShadow = '';
+                                        }, 3000);
+                                    }
+                                }
+                            }, 300);
+                        });
                     } else {
                         ElMessage.info('ℹ️ 当前没有激活的筛选条件，显示全部数据');
                     }
@@ -7925,6 +7979,23 @@
                         filtered = filtered.filter(record => {
                             const recordOutType = record.out_type || record.outType || record.change_type;
                             return Number(recordOutType) === Number(filterConditions.outType);
+                        });
+                    }
+
+                    // 关键词筛选
+                    if (filterConditions.keyword) {
+                        const keyword = filterConditions.keyword.toLowerCase().trim();
+                        filtered = filtered.filter(record => {
+                            const searchFields = [
+                                record.vehicle_no,
+                                record.batch_no,
+                                record.ref_no,
+                                record.out_no
+                            ].filter(Boolean);
+
+                            return searchFields.some(field =>
+                                field.toString().toLowerCase().includes(keyword)
+                            );
                         });
                     }
 
@@ -10310,21 +10381,22 @@
                             preciseOutWeight = parseFloat(preciseOutWeight.toFixed(3));
                             
                             const historyItem = {
-                                inventory_id: inventoryItem.id, // 添加 inventory_id 外键
+                                inventory_id: inventoryItem.id,
                                 batch_no: batchItem.batch_no,
                                 unit: inventoryItem.unit,
                                 specification: inventoryItem.specification || batchItem.specification || '',
                                 material: inventoryItem.material || batchItem.material || '',
                                 change_type: 2,
+                                out_type: outboundForm.out_type,
                                 change_weight: -preciseOutWeight,
                                 before_weight: inventoryItem.weight,
                                 after_weight: updatedItem.weight,
                                 unit_price: batchItem.unit_price || 0,
-                                total_amount: Math.ceil((parseFloat(batchItem.unit_price || 0) || 0) * preciseOutWeight), // 总价直接进位到整数元
+                                total_amount: Math.ceil((parseFloat(batchItem.unit_price || 0) || 0) * preciseOutWeight),
                                 ref_no: outboundForm.out_no,
-                                vehicle_no: outboundForm.vehicle_no || '', // 修复：添加出库车号字段
+                                vehicle_no: outboundForm.vehicle_no || '',
                                 remark: outboundForm.remark || '出库操作',
-                                outbound_timestamp: outboundTimestamp // 添加精确的出库时间戳
+                                outbound_timestamp: outboundTimestamp
                             };
                             
                             // 插入出库历史记录
