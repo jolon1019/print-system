@@ -313,6 +313,10 @@
                             <span class="label">销售订单</span>
                             <span class="badge" v-if="pendingOrders > 0">{{ pendingOrders }}</span>
                         </div>
+                        <div class="nav-item" :class="{ active: activeModule === 'goods' }" @click="switchModule('goods')">
+                            <span class="icon">📦</span>
+                            <span class="label">货物清单</span>
+                        </div>
                     </div>
                     <div class="nav-group">
                         <div class="nav-group-title">应收应付</div>
@@ -370,6 +374,7 @@
                     <div class="content-header-actions">
                         <el-button v-if="activeModule === 'customers'" type="primary" @click="showCustomerDialog">+ 新增客户</el-button>
                         <el-button v-if="activeModule === 'sales'" type="primary" @click="showSalesDialog">+ 新增订单</el-button>
+                        <el-button v-if="activeModule === 'goods'" type="primary" @click="showGoodsDialog">+ 新增货物</el-button>
                         <el-button v-if="activeModule === 'receivables'" type="primary" @click="showReceivableDialog" :disabled="!selectedReceivable">💳 收款登记</el-button>
                         <el-button v-if="activeModule === 'payables'" type="primary" @click="showPayableDialog" :disabled="!selectedPayable">💳 付款登记</el-button>
                         <el-button v-if="activeModule === 'costs'" type="primary" @click="showCostDialog">📝 录入成本</el-button>
@@ -413,6 +418,9 @@
                                     <el-table-column prop="customer_name" label="客户名称" width="180"></el-table-column>
                                     <el-table-column prop="contact_person" label="联系人" width="100"></el-table-column>
                                     <el-table-column prop="contact_phone" label="电话" width="130"></el-table-column>
+                                    <el-table-column prop="bank_name" label="开户行" width="120"></el-table-column>
+                                    <el-table-column prop="bank_account" label="账号" width="150"></el-table-column>
+                                    <el-table-column prop="tax_id" label="税号" width="150"></el-table-column>
                                     <el-table-column label="信用额度" width="120" align="right">
                                         <template #default="{ row }">
                                             <span class="amount">¥{{ formatNumber(row.credit_limit) }}</span>
@@ -501,6 +509,74 @@
                                         <template #default="{ row }">
                                             <el-button type="primary" link size="small" @click="viewSalesDetail(row)">详情</el-button>
                                             <el-button type="success" link size="small" @click="confirmSalesOrder(row)" v-if="row.order_status === 1">确认</el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 货物清单模块 -->
+                    <div class="module-container" :class="{ active: activeModule === 'goods' }">
+                        <div class="stats-row">
+                            <div class="stat-card primary">
+                                <div class="label">货物总数</div>
+                                <div class="value">{{ goodsList.length }}</div>
+                            </div>
+                            <div class="stat-card success">
+                                <div class="label">库存总量</div>
+                                <div class="value">{{ formatNumber(goodsList.reduce((s, g) => s + (g.weight || 0), 0)) }} 吨</div>
+                            </div>
+                            <div class="stat-card warning">
+                                <div class="label">库存总值</div>
+                                <div class="value">¥{{ formatNumber(goodsList.reduce((s, g) => s + ((g.weight || 0) * (g.unit_price || 0)), 0)) }}</div>
+                            </div>
+                        </div>
+                        <div class="content-card">
+                            <div class="card-body">
+                                <div class="toolbar">
+                                    <el-input v-model="goodsSearch" placeholder="搜索货物名称/批号..." clearable style="width: 250px">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-select v-model="goodsWarehouseFilter" placeholder="仓库筛选" clearable style="width: 120px">
+                                        <el-option label="全部" value=""></el-option>
+                                        <el-option v-for="w in warehouseList" :key="w" :label="w" :value="w"></el-option>
+                                    </el-select>
+                                </div>
+                                <el-table :data="filteredGoods" style="width: 100%" v-loading="loading">
+                                    <el-table-column prop="batch_no" label="批号" width="120"></el-table-column>
+                                    <el-table-column prop="product_name" label="产品名称" width="150"></el-table-column>
+                                    <el-table-column prop="specification" label="规格" width="120"></el-table-column>
+                                    <el-table-column prop="material" label="材质" width="100"></el-table-column>
+                                    <el-table-column prop="grade" label="等级" width="80"></el-table-column>
+                                    <el-table-column prop="origin" label="产地" width="100"></el-table-column>
+                                    <el-table-column prop="warehouse" label="仓库" width="100"></el-table-column>
+                                    <el-table-column prop="weight" label="重量(吨)" width="100" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">{{ formatNumber(row.weight) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="unit_price" label="单价(元)" width="100" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">¥{{ formatNumber(row.unit_price) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="amount" label="金额(元)" width="120" align="right">
+                                        <template #default="{ row }">
+                                            <span class="amount">¥{{ formatNumber((row.weight || 0) * (row.unit_price || 0)) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="80" align="center">
+                                        <template #default="{ row }">
+                                            <span :class="['status-tag', row.status === 1 ? 'status-completed' : 'status-pending']">
+                                                {{ row.status === 1 ? '在库' : '已出' }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="150" fixed="right">
+                                        <template #default="{ row }">
+                                            <el-button type="primary" link size="small" @click="editGoods(row)">编辑</el-button>
+                                            <el-button type="danger" link size="small" @click="deleteGoods(row)">删除</el-button>
                                         </template>
                                     </el-table-column>
                                 </el-table>
@@ -999,6 +1075,17 @@
                 <el-form-item label="地址">
                     <el-input v-model="customerForm.address" type="textarea" :rows="2" placeholder="请输入地址"></el-input>
                 </el-form-item>
+                <div class="form-grid">
+                    <el-form-item label="开户行">
+                        <el-input v-model="customerForm.bank_name" placeholder="请输入开户行"></el-input>
+                    </el-form-item>
+                    <el-form-item label="账号">
+                        <el-input v-model="customerForm.bank_account" placeholder="请输入银行账号"></el-input>
+                    </el-form-item>
+                </div>
+                <el-form-item label="税号">
+                    <el-input v-model="customerForm.tax_id" placeholder="请输入税号"></el-input>
+                </el-form-item>
                 <el-form-item label="备注">
                     <el-input v-model="customerForm.remark" type="textarea" :rows="2" placeholder="请输入备注"></el-input>
                 </el-form-item>
@@ -1034,32 +1121,57 @@
                 </div>
                 <el-form-item label="订单明细">
                     <el-table :data="salesForm.items" style="width: 100%" size="small">
-                        <el-table-column label="产品名称" width="200">
+                        <el-table-column label="选择货物" width="180">
+                            <template #default="{ row }">
+                                <el-select v-model="row.goods_id" placeholder="从货物清单选择" clearable filterable @change="(val) => handleGoodsSelect(row, val)" style="width: 100%">
+                                    <el-option v-for="g in goodsList.filter(item => item.status === 1)" :key="g.goods_id" :label="g.product_name" :value="g.goods_id">
+                                        <span>{{ g.product_name }}</span>
+                                        <span style="float: right; color: #8492a6; font-size: 12px;">{{ g.batch_no }}</span>
+                                    </el-option>
+                                </el-select>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="批号" width="100">
+                            <template #default="{ row }">
+                                <span>{{ row.batch_no || '-' }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="产品名称" width="150">
                             <template #default="{ row }">
                                 <el-input v-model="row.product_name" placeholder="产品名称"></el-input>
                             </template>
                         </el-table-column>
-                        <el-table-column label="规格" width="120">
+                        <el-table-column label="规格" width="100">
                             <template #default="{ row }">
                                 <el-input v-model="row.specification" placeholder="规格"></el-input>
                             </template>
                         </el-table-column>
-                        <el-table-column label="数量" width="100">
+                        <el-table-column label="材质" width="80">
+                            <template #default="{ row }">
+                                <span>{{ row.material || '-' }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="仓库" width="80">
+                            <template #default="{ row }">
+                                <span>{{ row.warehouse || '-' }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="数量" width="80">
                             <template #default="{ row }">
                                 <el-input-number v-model="row.quantity" :min="1" size="small" style="width: 100%"></el-input-number>
                             </template>
                         </el-table-column>
-                        <el-table-column label="单价" width="120">
+                        <el-table-column label="单价" width="100">
                             <template #default="{ row }">
                                 <el-input-number v-model="row.unit_price" :min="0" :precision="2" size="small" style="width: 100%"></el-input-number>
                             </template>
                         </el-table-column>
-                        <el-table-column label="金额" width="120" align="right">
+                        <el-table-column label="金额" width="100" align="right">
                             <template #default="{ row }">
                                 ¥{{ formatNumber(row.quantity * row.unit_price) }}
                             </template>
                         </el-table-column>
-                        <el-table-column label="操作" width="80">
+                        <el-table-column label="操作" width="60">
                             <template #default="{ $index }">
                                 <el-button type="danger" link size="small" @click="removeSalesItem($index)">删除</el-button>
                             </template>
@@ -1077,6 +1189,89 @@
             <template #footer>
                 <el-button @click="salesDialogVisible = false">取消</el-button>
                 <el-button type="primary" @click="saveSales" :loading="saving">保存</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 货物对话框 -->
+        <el-dialog v-model="goodsDialogVisible" :title="goodsForm.id ? '编辑货物' : '新增货物'" width="600px">
+            <el-form :model="goodsForm" :rules="goodsRules" ref="goodsFormRef" label-width="100px">
+                <el-row :gutter="20">
+                    <el-col :span="12">
+                        <el-form-item label="批号" prop="batch_no">
+                            <el-input v-model="goodsForm.batch_no" placeholder="请输入批号"></el-input>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="产品名称" prop="product_name">
+                            <el-input v-model="goodsForm.product_name" placeholder="请输入产品名称"></el-input>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="20">
+                    <el-col :span="12">
+                        <el-form-item label="规格">
+                            <el-input v-model="goodsForm.specification" placeholder="请输入规格"></el-input>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="材质">
+                            <el-input v-model="goodsForm.material" placeholder="请输入材质"></el-input>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="20">
+                    <el-col :span="12">
+                        <el-form-item label="等级">
+                            <el-select v-model="goodsForm.grade" placeholder="请选择等级" style="width: 100%">
+                                <el-option label="A级" value="A"></el-option>
+                                <el-option label="B级" value="B"></el-option>
+                                <el-option label="C级" value="C"></el-option>
+                                <el-option label="D级" value="D"></el-option>
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="产地">
+                            <el-input v-model="goodsForm.origin" placeholder="请输入产地"></el-input>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="20">
+                    <el-col :span="12">
+                        <el-form-item label="仓库" prop="warehouse">
+                            <el-select v-model="goodsForm.warehouse" placeholder="请选择仓库" style="width: 100%">
+                                <el-option v-for="w in warehouseList" :key="w" :label="w" :value="w"></el-option>
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="重量(吨)">
+                            <el-input-number v-model="goodsForm.weight" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="20">
+                    <el-col :span="12">
+                        <el-form-item label="单价(元)">
+                            <el-input-number v-model="goodsForm.unit_price" :min="0" :precision="2" style="width: 100%"></el-input-number>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="状态">
+                            <el-select v-model="goodsForm.status" placeholder="请选择状态" style="width: 100%">
+                                <el-option label="在库" :value="1"></el-option>
+                                <el-option label="已出" :value="0"></el-option>
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-form-item label="备注">
+                    <el-input v-model="goodsForm.remark" type="textarea" :rows="2" placeholder="请输入备注"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="goodsDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveGoods" :loading="saving">保存</el-button>
             </template>
         </el-dialog>
 
@@ -1312,6 +1507,7 @@
                 const moduleInfo = {
                     customers: { icon: '👥', title: '客户管理' },
                     sales: { icon: '📝', title: '销售订单' },
+                    goods: { icon: '📦', title: '货物清单' },
                     receivables: { icon: '💰', title: '应收账款' },
                     payables: { icon: '💳', title: '应付账款' },
                     costs: { icon: '📊', title: '成本核算' },
@@ -1330,6 +1526,7 @@
                 // 对话框可见性
                 const customerDialogVisible = ref(false);
                 const salesDialogVisible = ref(false);
+                const goodsDialogVisible = ref(false);
                 const receivableDialogVisible = ref(false);
                 const payableDialogVisible = ref(false);
                 const costDialogVisible = ref(false);
@@ -1338,6 +1535,7 @@
                 // 表单引用
                 const customerFormRef = ref(null);
                 const salesFormRef = ref(null);
+                const goodsFormRef = ref(null);
                 const receivableFormRef = ref(null);
                 const payableFormRef = ref(null);
                 const costFormRef = ref(null);
@@ -1353,6 +1551,9 @@
                     address: '',
                     credit_limit: 0,
                     status: 1,
+                    bank_name: '',
+                    bank_account: '',
+                    tax_id: '',
                     remark: ''
                 });
                 const customerRules = {
@@ -1374,6 +1575,39 @@
                 };
                 const salesTotalAmount = computed(() => {
                     return salesForm.items.reduce((sum, item) => sum + (item.quantity * item.unit_price || 0), 0);
+                });
+
+                // 货物表单
+                const goodsForm = reactive({
+                    id: null,
+                    batch_no: '',
+                    product_name: '',
+                    specification: '',
+                    material: '',
+                    grade: '',
+                    origin: '',
+                    warehouse: '',
+                    weight: 0,
+                    unit_price: 0,
+                    status: 1,
+                    remark: ''
+                });
+                const goodsRules = {
+                    batch_no: [{ required: true, message: '请输入批号', trigger: 'blur' }],
+                    product_name: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
+                    warehouse: [{ required: true, message: '请选择仓库', trigger: 'change' }]
+                };
+
+                // 货物筛选
+                const filteredGoods = computed(() => {
+                    return goodsList.value.filter(g => {
+                        const matchSearch = !goodsSearch.value || 
+                            g.product_name?.includes(goodsSearch.value) || 
+                            g.batch_no?.includes(goodsSearch.value) ||
+                            g.specification?.includes(goodsSearch.value);
+                        const matchWarehouse = !goodsWarehouseFilter.value || g.warehouse === goodsWarehouseFilter.value;
+                        return matchSearch && matchWarehouse;
+                    });
                 });
 
                 // 收款表单
@@ -1441,6 +1675,12 @@
                 const salesStatusFilter = ref('');
                 const salesDateRange = ref([]);
                 const salesStats = reactive({ total: 0, completed: 0, pending: 0, amount: 0 });
+
+                const goodsList = ref([]);
+                const goodsSearch = ref('');
+                const goodsWarehouseFilter = ref('');
+                const warehouseList = ref(['原料库', '成品库', '五金库', '废料库']);
+                const goodsStats = reactive({ total: 0, weight: 0, amount: 0 });
 
                 const receivables = ref([]);
                 const receivableSearch = ref('');
@@ -1557,6 +1797,7 @@
                         switch(module) {
                             case 'customers': await loadCustomers(); break;
                             case 'sales': await loadSales(); break;
+                            case 'goods': await loadGoods(); break;
                             case 'receivables': await loadReceivables(); break;
                             case 'payables': await loadPayables(); break;
                             case 'costs': await loadCostData(); break;
@@ -1592,6 +1833,22 @@
                         salesStats.amount = data?.reduce((s, o) => s + (o.final_amount || o.total_amount || 0), 0) || 0;
                         pendingOrders.value = salesStats.pending;
                         logAudit('VIEW', 'sales_orders', null, null, { count: data?.length || 0 });
+                    }
+                };
+
+                const loadGoods = async () => {
+                    if (!currentUserId.value) return;
+                    const { data, error } = await db.from('goods').select('*').eq('user_id', currentUserId.value).order('created_at', { ascending: false });
+                    if (!error) {
+                        goodsList.value = data || [];
+                        goodsStats.total = data?.length || 0;
+                        goodsStats.weight = data?.reduce((s, g) => s + (g.weight || 0), 0) || 0;
+                        goodsStats.amount = data?.reduce((s, g) => s + ((g.weight || 0) * (g.unit_price || 0)), 0) || 0;
+                        const warehouses = [...new Set(data?.map(g => g.warehouse).filter(w => w))];
+                        if (warehouses.length > 0) {
+                            warehouseList.value = warehouses;
+                        }
+                        logAudit('VIEW', 'goods', null, null, { count: data?.length || 0 });
                     }
                 };
 
@@ -1741,6 +1998,9 @@
                     customerForm.address = row.address || '';
                     customerForm.credit_limit = row.credit_limit || 0;
                     customerForm.status = row.status;
+                    customerForm.bank_name = row.bank_name || '';
+                    customerForm.bank_account = row.bank_account || '';
+                    customerForm.tax_id = row.tax_id || '';
                     customerForm.remark = row.remark || '';
                     customerDialogVisible.value = true;
                 };
@@ -1763,6 +2023,9 @@
                                 address: customerForm.address,
                                 credit_limit: customerForm.credit_limit,
                                 status: customerForm.status,
+                                bank_name: customerForm.bank_name,
+                                bank_account: customerForm.bank_account,
+                                tax_id: customerForm.tax_id,
                                 remark: customerForm.remark,
                                 user_id: currentUserId.value,
                                 updated_at: new Date().toISOString()
@@ -1796,22 +2059,152 @@
                     });
                 };
 
+                const showGoodsDialog = () => {
+                    goodsForm.id = null;
+                    goodsForm.batch_no = '';
+                    goodsForm.product_name = '';
+                    goodsForm.specification = '';
+                    goodsForm.material = '';
+                    goodsForm.grade = '';
+                    goodsForm.origin = '';
+                    goodsForm.warehouse = '';
+                    goodsForm.weight = 0;
+                    goodsForm.unit_price = 0;
+                    goodsForm.status = 1;
+                    goodsForm.remark = '';
+                    goodsDialogVisible.value = true;
+                };
+
+                const editGoods = (row) => {
+                    goodsForm.id = row.goods_id;
+                    goodsForm.batch_no = row.batch_no || '';
+                    goodsForm.product_name = row.product_name || '';
+                    goodsForm.specification = row.specification || '';
+                    goodsForm.material = row.material || '';
+                    goodsForm.grade = row.grade || '';
+                    goodsForm.origin = row.origin || '';
+                    goodsForm.warehouse = row.warehouse || '';
+                    goodsForm.weight = row.weight || 0;
+                    goodsForm.unit_price = row.unit_price || 0;
+                    goodsForm.status = row.status || 1;
+                    goodsForm.remark = row.remark || '';
+                    goodsDialogVisible.value = true;
+                };
+
+                const saveGoods = async () => {
+                    if (!goodsFormRef.value) return;
+                    if (!currentUserId.value) {
+                        ElementPlus.ElMessage.error('用户未登录');
+                        return;
+                    }
+                    await goodsFormRef.value.validate(async (valid) => {
+                        if (!valid) return;
+                        saving.value = true;
+                        try {
+                            const data = {
+                                batch_no: goodsForm.batch_no,
+                                product_name: goodsForm.product_name,
+                                specification: goodsForm.specification,
+                                material: goodsForm.material,
+                                grade: goodsForm.grade,
+                                origin: goodsForm.origin,
+                                warehouse: goodsForm.warehouse,
+                                weight: goodsForm.weight,
+                                unit_price: goodsForm.unit_price,
+                                status: goodsForm.status,
+                                remark: goodsForm.remark,
+                                user_id: currentUserId.value,
+                                updated_at: new Date().toISOString()
+                            };
+                            if (goodsForm.id) {
+                                const { error } = await db.from('goods').update(data).eq('goods_id', goodsForm.id).eq('user_id', currentUserId.value);
+                                if (error) {
+                                    ElementPlus.ElMessage.error('更新失败: ' + error.message);
+                                    return;
+                                }
+                                logAudit('UPDATE', 'goods', goodsForm.id, data.batch_no, { product_name: data.product_name });
+                                ElementPlus.ElMessage.success('货物更新成功');
+                            } else {
+                                data.created_at = new Date().toISOString();
+                                const { error } = await db.from('goods').insert(data);
+                                if (error) {
+                                    ElementPlus.ElMessage.error('保存失败: ' + error.message);
+                                    return;
+                                }
+                                logAudit('CREATE', 'goods', null, data.batch_no, { product_name: data.product_name });
+                                ElementPlus.ElMessage.success('货物保存成功');
+                            }
+                            goodsDialogVisible.value = false;
+                            loadGoods();
+                        } catch (e) {
+                            ElementPlus.ElMessage.error('保存失败');
+                        } finally {
+                            saving.value = false;
+                        }
+                    });
+                };
+
+                const deleteGoods = async (row) => {
+                    try {
+                        await ElementPlus.ElMessageBox.confirm('确定要删除该货物吗？', '提示', {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消',
+                            type: 'warning'
+                        });
+                        const { error } = await db.from('goods').delete().eq('goods_id', row.goods_id).eq('user_id', currentUserId.value);
+                        if (error) {
+                            ElementPlus.ElMessage.error('删除失败: ' + error.message);
+                            return;
+                        }
+                        logAudit('DELETE', 'goods', row.goods_id, row.batch_no, { product_name: row.product_name });
+                        ElementPlus.ElMessage.success('删除成功');
+                        loadGoods();
+                    } catch (e) {
+                        if (e !== 'cancel') {
+                            console.error('Delete error:', e);
+                        }
+                    }
+                };
+
                 const showSalesDialog = () => {
                     salesForm.customer_id = null;
                     salesForm.order_date = new Date().toISOString().split('T')[0];
                     salesForm.delivery_date = '';
                     salesForm.payment_method = 'monthly';
-                    salesForm.items = [{ product_name: '', specification: '', quantity: 1, unit_price: 0 }];
+                    salesForm.items = [{ goods_id: null, batch_no: '', product_name: '', specification: '', material: '', warehouse: '', quantity: 1, unit_price: 0 }];
                     salesForm.remark = '';
+                    if (goodsList.value.length === 0) {
+                        loadGoods();
+                    }
                     salesDialogVisible.value = true;
                 };
 
                 const addSalesItem = () => {
-                    salesForm.items.push({ product_name: '', specification: '', quantity: 1, unit_price: 0 });
+                    salesForm.items.push({ goods_id: null, batch_no: '', product_name: '', specification: '', material: '', warehouse: '', quantity: 1, unit_price: 0 });
                 };
 
                 const removeSalesItem = (index) => {
                     salesForm.items.splice(index, 1);
+                };
+
+                const handleGoodsSelect = (row, goodsId) => {
+                    if (!goodsId) {
+                        row.goods_id = null;
+                        row.batch_no = '';
+                        row.material = '';
+                        row.warehouse = '';
+                        return;
+                    }
+                    const goods = goodsList.value.find(g => g.goods_id === goodsId);
+                    if (goods) {
+                        row.goods_id = goods.goods_id;
+                        row.product_name = goods.product_name || '';
+                        row.specification = goods.specification || '';
+                        row.batch_no = goods.batch_no || '';
+                        row.material = goods.material || '';
+                        row.warehouse = goods.warehouse || '';
+                        row.unit_price = goods.unit_price || 0;
+                    }
                 };
 
                 const saveSales = async () => {
@@ -2222,17 +2615,19 @@
                     currentUser, currentUserId, checkAuth, logAudit,
                     loading, saving, sidebarOpen, activeModule, moduleIcon, moduleTitle,
                     pendingOrders, overdueReceivables,
-                    customerDialogVisible, salesDialogVisible, receivableDialogVisible, payableDialogVisible,
+                    customerDialogVisible, salesDialogVisible, goodsDialogVisible, receivableDialogVisible, payableDialogVisible,
                     costDialogVisible, voucherDialogVisible,
-                    customerFormRef, salesFormRef, receivableFormRef, payableFormRef, costFormRef, voucherFormRef,
+                    customerFormRef, salesFormRef, goodsFormRef, receivableFormRef, payableFormRef, costFormRef, voucherFormRef,
                     customerForm, customerRules,
-                    salesForm, salesRules, salesTotalAmount, addSalesItem, removeSalesItem,
+                    salesForm, salesRules, salesTotalAmount, addSalesItem, removeSalesItem, handleGoodsSelect,
+                    goodsForm, goodsRules, goodsSearch, goodsWarehouseFilter, warehouseList, filteredGoods,
                     receivableForm, receivableRules,
                     payableForm, payableRules,
                     costForm, costRules,
                     voucherForm, voucherRules, voucherTotalDebit, voucherTotalCredit, addVoucherItem, removeVoucherItem,
                     customers, customerSearch, customerStatusFilter, filteredCustomers,
                     sales, salesSearch, salesStatusFilter, salesDateRange, salesStats, filteredSales,
+                    goodsList, goodsStats,
                     receivables, receivableSearch, receivableStatusFilter, selectedReceivable, receivableStats, filteredReceivables,
                     payables, payableSearch, payableStatusFilter, selectedPayable, payableStats, filteredPayables,
                     costMonth, costRecords, costStats, costPieChart, costTrendChart,
@@ -2246,9 +2641,10 @@
                     getPayableStatusText, getPayableStatusClass,
                     getCostTypeText,
                     handleReceivableSelect, handlePayableSelect,
-                    showCustomerDialog, showSalesDialog, showReceivableDialog, showPayableDialog,
+                    showCustomerDialog, showSalesDialog, showGoodsDialog, showReceivableDialog, showPayableDialog,
                     showCostDialog, showTaxCalcDialog, showVoucherDialog,
                     editCustomer, deleteCustomer, saveCustomer,
+                    editGoods, deleteGoods, saveGoods,
                     viewSalesDetail, confirmSalesOrder, saveSales,
                     viewReceivableDetail, receivePayment, saveReceivable,
                     viewPayableDetail, makePayment, savePayable,

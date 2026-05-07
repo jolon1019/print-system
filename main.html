@@ -24,6 +24,7 @@
                 timeRange: '',
                 customDateRange: [],
                 outType: null,
+                unit: '',
                 keyword: '',
                 minWeight: null,
                 maxWeight: null,
@@ -36,6 +37,7 @@
             let count = 0;
             if (conditions.timeRange) count++;
             if (conditions.outType) count++;
+            if (conditions.unit) count++;
             if (conditions.keyword) count++;
             return count;
         },
@@ -104,6 +106,13 @@
                 filtered = filtered.filter(record => {
                     const recordOutType = record.out_type || record.outType || record.change_type;
                     return Number(recordOutType) === Number(conditions.outType);
+                });
+            }
+
+            if (conditions.unit) {
+                const unitKeyword = conditions.unit.toLowerCase().trim();
+                filtered = filtered.filter(record => {
+                    return record.unit && record.unit.toLowerCase().includes(unitKeyword);
                 });
             }
 
@@ -4448,7 +4457,7 @@
                     
                     <!-- 财务管理按钮 -->
                     <a 
-                        href="finanace.html"
+                        href="finance.html"
                         class="finance-btn"
                         target="_blank"
                     >
@@ -5557,7 +5566,7 @@
                                     </div>
                                 </div>
 
-                                <!-- 出库类型 + 关键词搜索 -->
+                                <!-- 出库类型 + 单位 + 关键词搜索 -->
                                 <div class="filter-row">
                                     <div class="filter-group">
                                         <label class="filter-label">📦 出库类型</label>
@@ -5578,6 +5587,16 @@
                                                 :value="opt.type_code" 
                                             />
                                         </el-select>
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label class="filter-label">🏢 单位</label>
+                                        <el-input 
+                                            v-model="filterConditions.unit" 
+                                            placeholder="输入单位名称..." 
+                                            clearable 
+                                            size="small"
+                                        />
                                     </div>
 
                                     <div class="filter-group">
@@ -5862,7 +5881,7 @@
                                                 <el-button 
                                                     type="success" 
                                                     size="small" 
-                                                    @click.stop="editOutboundRecord(item)"
+                                                    @click.stop="editOutboundRecord(batch)"
                                                     title="编辑出库记录"
                                                 >
                                                     编辑
@@ -6739,7 +6758,7 @@
                 // 将同一出库单号下的多批次合并成一条记录，便于展示和补打票
                 const groupedOutboundHistory = computed(() => {
                     const groups = {};
-                    const filteredRecords = filterRecordsByTime(outboundHistoryData.value);
+                    const filteredRecords = EnhancedFilterStatsSystem.filterRecords(outboundHistoryData.value, filterConditions);
                     const inventoryMap = {};
                     inventoryData.value.forEach(inv => {
                         inventoryMap[inv.batch_no] = inv;
@@ -6813,7 +6832,7 @@
                 
                 // 计算筛选时间段内的统计数据
                 const filteredOutboundStats = computed(() => {
-                    const filteredRecords = filterRecordsByTime(outboundHistoryData.value);
+                    const filteredRecords = EnhancedFilterStatsSystem.filterRecords(outboundHistoryData.value, filterConditions);
                     
                     let totalWeight = 0;
                     let totalAmount = 0;
@@ -9572,8 +9591,15 @@
                 // 编辑出库记录 - 支持出库类型、单价、装货车辆和备注字段的修改
                 const editOutboundRecord = async (item) => {
                     try {
-                        // 计算单价 = 总金额 / 出库重量
-                        const unitPrice = item.total_amount && item.change_weight ? (item.total_amount / Math.abs(item.change_weight)).toFixed(2) : 0;
+                        // 优先使用数据库中已有的单价，只有在没有时才重新计算
+                        let unitPrice;
+                        if (item.unit_price !== undefined && item.unit_price !== null && item.unit_price !== '' && Number(item.unit_price) > 0) {
+                            unitPrice = Number(item.unit_price).toFixed(2);
+                        } else if (item.total_amount && item.change_weight) {
+                            unitPrice = (item.total_amount / Math.abs(item.change_weight)).toFixed(2);
+                        } else {
+                            unitPrice = '0.00';
+                        }
                         
                         const formData = {
                             batch_no: item.batch_no,
@@ -9660,12 +9686,14 @@
                         };
                         
                         // 1. 更新outbound表 - 增强错误处理和调试信息
-                        console.log('开始更新outbound表，数据:', outboundData, '条件: ref_no =', item.ref_no);
+                        // 使用outbound_order_id来确保只更新对应的批次记录
+                        const recordId = item.id || item.outbound_order_id;
+                        console.log('开始更新outbound表，数据:', outboundData, '条件: outbound_order_id =', recordId);
                         
                         const { data: updateResult, error: historyError } = await supabaseClient
                             .from('outbound')
                             .update(outboundData)
-                            .eq('ref_no', item.ref_no)
+                            .eq('outbound_order_id', recordId)
                             .select(); // 添加select()以获取更新结果
                         
                         if (historyError) {
@@ -9676,7 +9704,7 @@
                         console.log('数据库更新结果:', updateResult);
                         
                         if (!updateResult || updateResult.length === 0) {
-                            throw new Error(`未找到匹配的出库记录，单号: ${item.ref_no}`);
+                            throw new Error(`未找到匹配的出库记录，ID: ${recordId}`);
                         }
                         
                         // 2. 不再同步到outbound_batches表（outbound_orders表不存在）
@@ -12711,7 +12739,7 @@
                     inventoryCurrentPage.value = 1;
                 });
 
-                watch([() => filterConditions.timeRange, () => filterConditions.outType, () => filterConditions.keyword], () => {
+                watch([() => filterConditions.timeRange, () => filterConditions.outType, () => filterConditions.unit, () => filterConditions.keyword], () => {
                     outboundCurrentPage.value = 1;
                 });
 

@@ -1756,8 +1756,9 @@
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; color: #606266;">同步范围:</label>
                             <select v-model="syncSettings.dateRange" style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px;">
-                                <option value="2days">最近2天</option>
                                 <option value="today">今天</option>
+                                <option value="7days">最近7天</option>
+                                <option value="2days">最近2天</option>
                             </select>
                         </div>
                         
@@ -4448,6 +4449,9 @@
                         const startDate = new Date();
                         
                         switch (this.syncSettings.dateRange) {
+                            case '7days':
+                                startDate.setDate(startDate.getDate() - 7);
+                                break;
                             case '2days':
                                 startDate.setDate(startDate.getDate() - 2);
                                 break;

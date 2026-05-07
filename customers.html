@@ -297,6 +297,9 @@
                         <el-table-column prop="contact_person" label="联系人" width="100" />
                         <el-table-column prop="contact_phone" label="联系电话" width="130" />
                         <el-table-column prop="city" label="城市" width="100" />
+                        <el-table-column prop="bank_name" label="开户行" width="120" />
+                        <el-table-column prop="bank_account" label="账号" width="150" />
+                        <el-table-column prop="tax_id" label="税号" width="150" />
                         <el-table-column prop="credit_limit" label="信用额度" width="120" align="right">
                             <template #default="{ row }">
                                 ¥{{ formatNumber(row.credit_limit) }}
@@ -395,6 +398,19 @@
                     </el-form-item>
                 </div>
                 <div class="form-row">
+                    <el-form-item label="开户行" prop="bank_name">
+                        <el-input v-model="formData.bank_name" placeholder="请输入开户行" />
+                    </el-form-item>
+                    <el-form-item label="账号" prop="bank_account">
+                        <el-input v-model="formData.bank_account" placeholder="请输入银行账号" />
+                    </el-form-item>
+                </div>
+                <div class="form-row full-width">
+                    <el-form-item label="税号" prop="tax_id">
+                        <el-input v-model="formData.tax_id" placeholder="请输入税号" />
+                    </el-form-item>
+                </div>
+                <div class="form-row">
                     <el-form-item label="信用额度" prop="credit_limit">
                         <el-input-number v-model="formData.credit_limit" :min="0" :precision="2" style="width: 100%;" />
                     </el-form-item>
@@ -436,6 +452,9 @@
                 <el-descriptions-item label="省份">{{ currentCustomer.province || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="城市">{{ currentCustomer.city || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="详细地址" :span="2">{{ currentCustomer.address || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="开户行">{{ currentCustomer.bank_name || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="账号">{{ currentCustomer.bank_account || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="税号">{{ currentCustomer.tax_id || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="信用额度">¥{{ formatNumber(currentCustomer.credit_limit) }}</el-descriptions-item>
                 <el-descriptions-item label="当前欠款">
                     <span :class="{ 'credit-warning': currentCustomer.current_arrears > currentCustomer.credit_limit && currentCustomer.credit_limit > 0 }">
@@ -510,6 +529,9 @@
                     credit_limit: 0,
                     current_arrears: 0,
                     payment_terms: '',
+                    bank_name: '',
+                    bank_account: '',
+                    tax_id: '',
                     remark: '',
                     status: 1
                 });

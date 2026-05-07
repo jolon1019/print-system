@@ -1,5 +1,35 @@
 if (typeof require === 'undefined') {
   console.warn('renderer.js skipped: not in Electron environment');
+
+  function openKucuSystem() {
+    var link = document.createElement('a');
+    link.href = 'main.html';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function killPort17026() {
+    alert('此功能仅在 Electron 桌面环境中可用');
+  }
+
+  function startService() {
+    alert('此功能仅在 Electron 桌面环境中可用');
+  }
+
+  function stopService() {
+    alert('此功能仅在 Electron 桌面环境中可用');
+  }
+
+  function editRemoteAccessUrl() {
+    alert('此功能仅在 Electron 桌面环境中可用');
+  }
+
+  function clearLogs() {}
+
+  function filterLogs() {}
 } else {
 const { ipcRenderer, shell } = require('electron');
 const os = require('os');
